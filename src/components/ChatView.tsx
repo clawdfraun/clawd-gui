@@ -231,16 +231,25 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
   };
 
   const addFilesWithSizeCheck = (files: File[]) => {
-    const oversized = files.filter(f => f.size > MAX_ATTACHMENT_BYTES);
-    if (oversized.length > 0) {
-      const names = oversized.map(f => f.name).join(', ');
-      setAttachError(`File too large (max ${MAX_ATTACHMENT_LABEL}): ${names}`);
-      const valid = files.filter(f => f.size <= MAX_ATTACHMENT_BYTES);
-      if (valid.length > 0) setAttachments(prev => [...prev, ...valid]);
-      return;
+    const errors: string[] = [];
+    const valid: File[] = [];
+
+    for (const f of files) {
+      if (!f.type.startsWith('image/')) {
+        errors.push(`${f.name}: only image attachments are supported (the gateway drops non-image files)`);
+      } else if (f.size > MAX_ATTACHMENT_BYTES) {
+        errors.push(`${f.name}: too large (max ${MAX_ATTACHMENT_LABEL}) — the WebSocket payload limit is 512 KB, and base64 encoding increases file size ~33%`);
+      } else {
+        valid.push(f);
+      }
     }
-    setAttachError(null);
-    setAttachments(prev => [...prev, ...files]);
+
+    if (errors.length > 0) {
+      setAttachError(errors.join('; '));
+    } else {
+      setAttachError(null);
+    }
+    if (valid.length > 0) setAttachments(prev => [...prev, ...valid]);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -307,7 +316,7 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
       {attachError && (
         <div className="px-4 py-2 border-t border-border">
           <div className="flex items-center gap-2 text-xs text-error bg-error/10 rounded px-3 py-1.5">
-            <span>⚠️ {attachError} — The WebSocket payload limit is 512 KB, and base64 encoding increases file size ~33%, so attachments must be under 0.5 MB.</span>
+            <span>⚠️ {attachError}</span>
             <button onClick={() => setAttachError(null)} className="ml-auto hover:text-text-primary">×</button>
           </div>
         </div>
@@ -349,6 +358,7 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
             ref={fileInputRef}
             type="file"
             multiple
+            accept="image/*"
             className="hidden"
             onChange={handleFileSelect}
           />
