@@ -10,7 +10,8 @@ import remarkGfm from 'remark-gfm';
 const HEARTBEAT_PROMPT = 'Read HEARTBEAT.md if it exists (workspace context). Follow it strictly. Do not infer or repeat old tasks from prior chats. If nothing needs attention, reply HEARTBEAT_OK.';
 
 const MAX_INLINE_BYTES = 512 * 1024; // 0.5 MB — WebSocket payload limit for inline base64
-const UPLOAD_URL = 'http://127.0.0.1:9089/upload';
+// Use the same host the browser is connected to (works for LAN access)
+const UPLOAD_URL = `http://${window.location.hostname}:9089/upload`;
 
 function isToolMessage(msg: ChatMessage): boolean {
   if (!Array.isArray(msg.content)) return false;
