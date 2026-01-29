@@ -182,7 +182,7 @@ export function ChatMessageBubble({ message, showThinking }: Props) {
           isUser ? (
             <p className="text-sm whitespace-pre-wrap">{text}</p>
           ) : (
-            <div className="prose prose-invert prose-sm max-w-none text-sm">
+            <div className="prose prose-sm max-w-none text-sm [&_*]:text-inherit">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
             </div>
           )

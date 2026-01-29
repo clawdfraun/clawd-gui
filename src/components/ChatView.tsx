@@ -321,7 +321,7 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
           return (
             <div key={runId} className="flex justify-start mb-3">
               <div className="max-w-[80%] rounded-xl px-4 py-3 bg-bg-tertiary">
-                <div className="prose prose-invert prose-sm max-w-none text-sm">
+                <div className="prose prose-sm max-w-none text-sm [&_*]:text-inherit">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
                 </div>
                 <div className="flex items-center gap-1 mt-2">

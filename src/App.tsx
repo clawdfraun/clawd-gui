@@ -6,6 +6,7 @@ import { ChatView } from './components/ChatView';
 import { WorkingOnPane } from './components/WorkingOnPane';
 import { WaitingForYouPane } from './components/WaitingForYouPane';
 import { ThinkingControls } from './components/ThinkingControls';
+import { StatusBar } from './components/StatusBar';
 
 export default function App() {
   const { state, client, gatewayUrl, token, connect, disconnect } = useGateway();
@@ -42,6 +43,13 @@ export default function App() {
     }, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [connected, refreshSessions]);
+
+  // Refresh sessions after each stream ends (to update token counts)
+  useEffect(() => {
+    if (streamEndCounter > 0) {
+      setTimeout(refreshSessions, 500);
+    }
+  }, [streamEndCounter, refreshSessions]);
 
   // Create new session
   const handleNewSession = useCallback(async () => {
@@ -95,6 +103,8 @@ export default function App() {
       console.error('Failed to toggle thinking:', err);
     }
   }, [client, activeSessionKey, thinkingLevel]);
+
+  const activeSession = sessions.find(s => s.key === activeSessionKey);
 
   return (
     <div className="h-screen flex flex-col bg-bg-primary">
@@ -198,6 +208,9 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* Status Bar */}
+      <StatusBar client={client} session={activeSession} connected={connected} />
     </div>
   );
 }
