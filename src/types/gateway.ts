@@ -1,6 +1,6 @@
 // Gateway WebSocket Protocol Types
 
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 3;
 
 // --- Frames ---
 

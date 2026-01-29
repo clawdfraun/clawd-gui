@@ -70,6 +70,9 @@ export function useChatStream(client: GatewayClient | null) {
   const [streamingMessages, setStreamingMessages] = useState<Map<string, string>>(new Map());
   const [agentEvents, setAgentEvents] = useState<Map<string, AgentEvent[]>>(new Map());
   const [activeRunIds, setActiveRunIds] = useState<Set<string>>(new Set());
+  const [finishedRunIds, setFinishedRunIds] = useState<Set<string>>(new Set());
+  // Incremented when a stream ends, so consumers can react
+  const [streamEndCounter, setStreamEndCounter] = useState(0);
   const handlersRef = useRef<(() => void)[]>([]);
 
   useEffect(() => {
@@ -82,7 +85,9 @@ export function useChatStream(client: GatewayClient | null) {
 
         if (evtState === 'delta') {
           setActiveRunIds(prev => new Set(prev).add(runId));
-          // Extract text from message
+          // Extract text from the delta message.
+          // Delta messages contain the FULL accumulated assistant message so far,
+          // not just the new characters. We always replace, never append.
           const msg = chatEvt.message;
           let text = '';
           if (typeof msg === 'string') {
@@ -92,10 +97,12 @@ export function useChatStream(client: GatewayClient | null) {
               .filter((b: Record<string, unknown>) => b.type === 'text')
               .map((b: Record<string, unknown>) => b.text || '')
               .join('');
-          } else if (msg && typeof msg === 'object' && 'content' in msg) {
-            const content = (msg as Record<string, unknown>).content;
-            if (typeof content === 'string') text = content;
-            else if (Array.isArray(content)) {
+          } else if (msg && typeof msg === 'object') {
+            const obj = msg as Record<string, unknown>;
+            const content = obj.content;
+            if (typeof content === 'string') {
+              text = content;
+            } else if (Array.isArray(content)) {
               text = content
                 .filter((b: Record<string, unknown>) => b.type === 'text')
                 .map((b: Record<string, unknown>) => b.text || '')
@@ -105,7 +112,8 @@ export function useChatStream(client: GatewayClient | null) {
           if (text) {
             setStreamingMessages(prev => {
               const next = new Map(prev);
-              next.set(runId, (next.get(runId) || '') + text);
+              // Always replace — deltas are cumulative, not incremental
+              next.set(runId, text);
               return next;
             });
           }
@@ -115,19 +123,16 @@ export function useChatStream(client: GatewayClient | null) {
             next.delete(runId);
             return next;
           });
-          // Clean up streaming message after small delay (let UI render final)
-          setTimeout(() => {
-            setStreamingMessages(prev => {
-              const next = new Map(prev);
-              next.delete(runId);
-              return next;
-            });
-            setAgentEvents(prev => {
-              const next = new Map(prev);
-              next.delete(runId);
-              return next;
-            });
-          }, 500);
+          setAgentEvents(prev => {
+            const next = new Map(prev);
+            next.delete(runId);
+            return next;
+          });
+          // Mark this run as finished — ChatView will clear streaming text
+          // after history reloads to avoid flash
+          setFinishedRunIds(prev => new Set(prev).add(runId));
+          // Signal stream ended so ChatView reloads history
+          setStreamEndCounter(c => c + 1);
         }
       } else if (evt.event === 'agent') {
         const agentEvt = evt.payload as AgentEvent;
@@ -147,5 +152,30 @@ export function useChatStream(client: GatewayClient | null) {
     };
   }, [client]);
 
-  return { streamingMessages, agentEvents, activeRunIds };
+  const markRunActive = useCallback((runId: string) => {
+    setActiveRunIds(prev => new Set(prev).add(runId));
+  }, []);
+
+  const markRunInactive = useCallback((runId: string) => {
+    setActiveRunIds(prev => {
+      const next = new Set(prev);
+      next.delete(runId);
+      return next;
+    });
+  }, []);
+
+  // Called by ChatView after history has loaded to clean up finished streaming messages
+  const clearFinishedStreams = useCallback(() => {
+    setFinishedRunIds(prev => {
+      if (prev.size === 0) return prev;
+      setStreamingMessages(sm => {
+        const next = new Map(sm);
+        prev.forEach(id => next.delete(id));
+        return next;
+      });
+      return new Set();
+    });
+  }, []);
+
+  return { streamingMessages, agentEvents, activeRunIds, finishedRunIds, streamEndCounter, markRunActive, markRunInactive, clearFinishedStreams };
 }

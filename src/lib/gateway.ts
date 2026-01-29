@@ -31,6 +31,7 @@ export class GatewayClient {
   private _state: ConnectionState = 'disconnected';
   private _helloOk: HelloOk | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private connectSent = false;
 
   constructor(url: string, token: string) {
     this.url = url;
@@ -59,18 +60,24 @@ export class GatewayClient {
   start() {
     if (this.closed) return;
     this.setState('connecting');
+    this.connectSent = false;
 
     this.ws = new WebSocket(this.url);
     this.ws.onopen = () => {
-      // Wait briefly for challenge, then send connect
-      setTimeout(() => this.sendConnect(), 500);
+      // Wait briefly for challenge event; if none arrives, send connect
+      setTimeout(() => {
+        if (!this.connectSent) this.sendConnect();
+      }, 500);
     };
     this.ws.onmessage = (e) => this.handleMessage(e.data as string);
     this.ws.onclose = (e) => {
       this.ws = null;
       this.flushPendingErrors(new Error(`closed (${e.code}): ${e.reason}`));
       if (!this.closed) {
-        this.setState('disconnected');
+        // Don't flash error→disconnected; just show error if we had one
+        if (this._state !== 'error') {
+          this.setState('disconnected');
+        }
         this.scheduleReconnect();
       }
     };
@@ -102,15 +109,18 @@ export class GatewayClient {
   }
 
   private sendConnect() {
+    if (this.connectSent) return;
+    this.connectSent = true;
+
     const params: ConnectParams = {
       minProtocol: PROTOCOL_VERSION,
       maxProtocol: PROTOCOL_VERSION,
       client: {
-        id: 'clawd-gui',
+        id: 'clawdbot-control-ui',
         displayName: 'Clawd GUI',
         version: '0.1.0',
         platform: 'web',
-        mode: 'control-ui',
+        mode: 'webchat',
       },
       caps: [],
       auth: { token: this.token },
@@ -136,7 +146,7 @@ export class GatewayClient {
 
       if (parsed.type === 'event') {
         const evt = parsed as EventFrame;
-        // Handle challenge
+        // Handle challenge — sendConnect guards against double-send
         if (evt.event === 'connect.challenge') {
           this.sendConnect();
           return;

@@ -1,18 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useGateway, useSessions, useChatStream } from './hooks/useGateway';
 import { ConnectionSettings } from './components/ConnectionSettings';
 import { SessionList } from './components/SessionList';
 import { ChatView } from './components/ChatView';
 import { WorkingOnPane } from './components/WorkingOnPane';
 import { WaitingForYouPane } from './components/WaitingForYouPane';
+import { ThinkingControls } from './components/ThinkingControls';
 
 export default function App() {
   const { state, client, gatewayUrl, token, connect, disconnect } = useGateway();
   const connected = state === 'connected';
   const { sessions, loading: sessionsLoading, refresh: refreshSessions } = useSessions(client, connected);
-  const { streamingMessages, agentEvents, activeRunIds } = useChatStream(client);
+  const { streamingMessages, agentEvents, activeRunIds, finishedRunIds, streamEndCounter, markRunActive, markRunInactive, clearFinishedStreams } = useChatStream(client);
 
   const [activeSessionKey, setActiveSessionKey] = useState('');
+  const [thinkingLevel, setThinkingLevel] = useState<string | null>(null);
+  const [showThinking, setShowThinking] = useState<boolean>(() => {
+    return localStorage.getItem('clawd-gui-show-thinking') === 'true';
+  });
 
   // Set default session on connect
   useEffect(() => {
@@ -24,11 +29,72 @@ export default function App() {
   // Also set from sessions list if no active key
   useEffect(() => {
     if (!activeSessionKey && sessions.length > 0) {
-      // Prefer webchat main session
       const webchat = sessions.find(s => s.key.includes('webchat') || s.channel === 'webchat');
       setActiveSessionKey(webchat?.key || sessions[0].key);
     }
   }, [sessions, activeSessionKey]);
+
+  // Periodic session refresh (every 5 minutes) to update derived titles
+  useEffect(() => {
+    if (!connected) return;
+    const interval = setInterval(() => {
+      refreshSessions();
+    }, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [connected, refreshSessions]);
+
+  // Create new session
+  const handleNewSession = useCallback(async () => {
+    if (!client) return;
+    try {
+      // Use chat.send to a new session key to create it
+      const sessionKey = `agent:main:webchat:${Date.now()}`;
+      await client.request('chat.send', {
+        sessionKey,
+        message: '/new',
+        idempotencyKey: `new-${Date.now()}`,
+      });
+      setActiveSessionKey(sessionKey);
+      setTimeout(refreshSessions, 1000);
+    } catch (err) {
+      console.error('Failed to create session:', err);
+    }
+  }, [client, refreshSessions]);
+
+  // Load thinking level when session changes
+  useEffect(() => {
+    if (!activeSessionKey || !sessions.length) return;
+    const session = sessions.find(s => s.key === activeSessionKey);
+    setThinkingLevel(session?.thinkingLevel ?? null);
+  }, [activeSessionKey, sessions]);
+
+  // Toggle show thinking
+  const handleToggleShowThinking = useCallback(() => {
+    setShowThinking(prev => {
+      const next = !prev;
+      localStorage.setItem('clawd-gui-show-thinking', String(next));
+      return next;
+    });
+  }, []);
+
+  // Cycle thinking level
+  const handleCycleThinkingLevel = useCallback(async () => {
+    if (!client || !activeSessionKey) return;
+
+    const levels: (string | null)[] = [null, 'low', 'medium', 'high'];
+    const currentIdx = levels.indexOf(thinkingLevel);
+    const nextLevel = levels[(currentIdx + 1) % levels.length];
+
+    try {
+      await client.request('sessions.patch', {
+        key: activeSessionKey,
+        thinkingLevel: nextLevel,
+      });
+      setThinkingLevel(nextLevel);
+    } catch (err) {
+      console.error('Failed to toggle thinking:', err);
+    }
+  }, [client, activeSessionKey, thinkingLevel]);
 
   return (
     <div className="h-screen flex flex-col bg-bg-primary">
@@ -46,10 +112,23 @@ export default function App() {
           )}
         </div>
         <div className="flex items-center gap-3">
+          {connected && client && activeSessionKey && (
+            <ThinkingControls
+              showThinking={showThinking}
+              thinkingLevel={thinkingLevel}
+              onToggleShow={handleToggleShowThinking}
+              onCycleLevel={handleCycleThinkingLevel}
+            />
+          )}
           {connected && client?.helloOk && (
             <span className="text-xs text-text-muted">
               v{client.helloOk.server.version}
               {client.helloOk.server.host && ` • ${client.helloOk.server.host}`}
+              {(() => {
+                const session = sessions.find(s => s.key === activeSessionKey);
+                const model = session?.model?.split('/').pop();
+                return model ? ` • ${model}` : '';
+              })()}
             </span>
           )}
           <ConnectionSettings
@@ -76,6 +155,7 @@ export default function App() {
                   activeKey={activeSessionKey}
                   onSelect={setActiveSessionKey}
                   onRefresh={refreshSessions}
+                  onNewSession={handleNewSession}
                   loading={sessionsLoading}
                 />
               </div>
@@ -97,10 +177,23 @@ export default function App() {
               streamingMessages={streamingMessages}
               agentEvents={agentEvents}
               activeRunIds={activeRunIds}
+              showThinking={showThinking}
+              streamEndCounter={streamEndCounter}
+              onMarkRunActive={markRunActive}
+              onMarkRunInactive={markRunInactive}
+              finishedRunIds={finishedRunIds}
+              onClearFinishedStreams={clearFinishedStreams}
             />
           ) : (
-            <div className="flex items-center justify-center h-full text-text-muted">
-              {connected ? 'Select a session to start chatting' : 'Connect to the gateway to get started'}
+            <div className="flex flex-col items-center justify-center h-full text-text-muted gap-3">
+              {connected ? (
+                <span>Select a session to start chatting</span>
+              ) : (
+                <>
+                  <span className="text-lg">Not connected to the gateway</span>
+                  <span className="text-sm">Click the <span className="text-text-primary font-medium">status indicator</span> in the top-right corner to enter your Gateway URL and token.</span>
+                </>
+              )}
             </div>
           )}
         </main>

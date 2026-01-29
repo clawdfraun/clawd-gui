@@ -36,7 +36,7 @@ All messages are JSON. Three frame types:
 ```json
 {
   "minProtocol": 7, "maxProtocol": 7,
-  "client": { "id": "clawd-gui", "version": "0.1.0", "platform": "web", "mode": "control-ui" },
+  "client": { "id": "clawd-gui", "version": "0.1.0", "platform": "web", "mode": "webchat" },
   "caps": [],
   "auth": { "token": "<gateway-token>" },
   "role": "operator",

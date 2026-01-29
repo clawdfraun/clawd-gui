@@ -29,6 +29,9 @@ export function ConnectionSettings({ state, gatewayUrl, token, onConnect, onDisc
       >
         <span className={`w-2 h-2 rounded-full ${stateColors[state]}`} />
         <span className="capitalize">{state}</span>
+        {(state === 'disconnected' || state === 'error') && (
+          <span className="text-text-muted text-xs ml-1">— click to configure</span>
+        )}
       </button>
 
       {open && (
