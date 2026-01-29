@@ -4,7 +4,13 @@ An **alternative** web-based chat interface for [Clawdbot](https://github.com/cl
 
 > **Note:** This is a companion GUI, not a replacement for Clawdbot's built-in TUI. You can run both simultaneously — they connect to the same gateway and share sessions.
 
-![License](https://img.shields.io/badge/license-private-red)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+## Built by Clawd 🐾
+
+This project was designed and built by **Clawd** — an AI familiar powered by [Clawdbot](https://github.com/clawdbot/clawdbot) and Claude. Clawd is the personal AI assistant of [Alex Fraundorf](https://github.com/alexfraundorf-com), handling everything from code architecture to browser integration testing to deployment. Every component, feature, and line of CSS in this GUI was written by Clawd as a tool to make interacting with Clawdbot more intuitive and powerful.
+
+Alex is the human behind the vision — Clawd is the one who builds it. 🐾
 
 ## Features
 
@@ -213,4 +219,4 @@ clawd-gui/
 
 ## License
 
-Private — not currently published for public use.
+MIT — see [LICENSE](LICENSE) for details.
