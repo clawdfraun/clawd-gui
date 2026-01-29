@@ -6,7 +6,7 @@ import { ChatView } from './components/ChatView';
 import { WorkingOnPane } from './components/WorkingOnPane';
 import { WaitingForYouPane } from './components/WaitingForYouPane';
 import { ThinkingControls } from './components/ThinkingControls';
-import { ThemeSwitcher, ContextBar, SessionUsage } from './components/StatusBar';
+import { ThemeSwitcher, ContextBar, AnthropicUsage } from './components/StatusBar';
 
 export default function App() {
   const { state, client, gatewayUrl, token, connect, disconnect } = useGateway();
@@ -121,7 +121,7 @@ export default function App() {
           {connected && activeSession && (
             <>
               <ContextBar session={activeSession} />
-              <SessionUsage session={activeSession} />
+              <AnthropicUsage client={client} session={activeSession} />
             </>
           )}
           {connected && client && activeSessionKey && (

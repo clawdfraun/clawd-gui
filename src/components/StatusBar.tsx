@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { GatewayClient } from '../lib/gateway';
 import { SessionEntry } from '../types/gateway';
 
 type ThemeMode = 'dark' | 'light' | 'system';
@@ -37,6 +38,15 @@ function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(0)}k`;
   return String(n);
+}
+
+function formatTimeUntil(resetAt: number): string {
+  const diff = resetAt - Date.now();
+  if (diff <= 0) return 'now';
+  const mins = Math.floor(diff / 60000);
+  const hrs = Math.floor(mins / 60);
+  if (hrs > 0) return `${hrs}h ${mins % 60}m`;
+  return `${mins}m`;
 }
 
 /* ── Theme Switcher ── */
@@ -87,7 +97,7 @@ export function ContextBar({ session }: { session: SessionEntry }) {
       className="flex items-center gap-1.5 text-[11px] text-text-muted"
       title={`Context: ${formatTokens(totalTokens)} / ${formatTokens(contextWindow)} tokens (${pct.toFixed(1)}%)`}
     >
-      <span>Ctx</span>
+      <span>Context</span>
       <div className="w-16 h-1.5 bg-bg-tertiary rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full transition-all ${
@@ -101,21 +111,81 @@ export function ContextBar({ session }: { session: SessionEntry }) {
   );
 }
 
-/* ── Anthropic Session Usage ── */
+/* ── Anthropic Provider Usage ── */
 
-export function SessionUsage({ session }: { session: SessionEntry }) {
+interface UsageWindow {
+  label: string;
+  usedPercent: number;
+  resetAt?: number;
+}
+
+interface ProviderUsage {
+  provider: string;
+  displayName: string;
+  windows: UsageWindow[];
+  error?: string;
+}
+
+interface UsageStatus {
+  updatedAt: number;
+  providers: ProviderUsage[];
+}
+
+export function AnthropicUsage({ client, session }: { client: GatewayClient; session: SessionEntry }) {
+  const [usage, setUsage] = useState<ProviderUsage | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const fetchUsage = useCallback(async () => {
+    if (!client || client.state !== 'connected') return;
+    setLoading(true);
+    try {
+      const result = await client.request<UsageStatus>('usage.status', {});
+      const anthropic = result.providers?.find(p => p.provider === 'anthropic');
+      setUsage(anthropic ?? null);
+    } catch {
+      // ignore
+    }
+    setLoading(false);
+  }, [client]);
+
+  // Fetch on mount and after each stream ends (session changes trigger re-render)
+  useEffect(() => {
+    fetchUsage();
+  }, [fetchUsage, session?.totalTokens]);
+
+  // Refresh every 2 minutes
+  useEffect(() => {
+    const interval = setInterval(fetchUsage, 2 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchUsage]);
+
   if (!isAnthropicModel(session?.model)) return null;
-
-  const input = session?.inputTokens ?? 0;
-  const output = session?.outputTokens ?? 0;
-  const total = session?.totalTokens ?? 0;
+  if (loading && !usage) return <span className="text-[11px] text-text-muted">⏳</span>;
+  if (!usage || usage.windows.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-1 text-[11px] text-text-muted" title={`Input: ${formatTokens(input)} · Output: ${formatTokens(output)} · Total: ${formatTokens(total)}`}>
-      <span className="text-accent">{formatTokens(input)}</span>
-      <span>↑</span>
-      <span className="text-success">{formatTokens(output)}</span>
-      <span>↓</span>
+    <div className="flex items-center gap-2 text-[11px] text-text-muted">
+      {usage.windows.map((w, i) => (
+        <div
+          key={i}
+          className="flex items-center gap-1"
+          title={`${w.label}: ${w.usedPercent.toFixed(1)}% used${w.resetAt ? ` · resets in ${formatTimeUntil(w.resetAt)}` : ''}`}
+        >
+          <span>{w.label}</span>
+          <div className="w-12 h-1.5 bg-bg-tertiary rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${
+                w.usedPercent > 80 ? 'bg-error' : w.usedPercent > 50 ? 'bg-warning' : 'bg-success'
+              }`}
+              style={{ width: `${Math.max(1, w.usedPercent)}%` }}
+            />
+          </div>
+          <span>{w.usedPercent.toFixed(0)}%</span>
+          {w.resetAt && (
+            <span className="text-text-muted">({formatTimeUntil(w.resetAt)})</span>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
