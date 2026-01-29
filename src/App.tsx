@@ -6,7 +6,7 @@ import { ChatView } from './components/ChatView';
 import { WorkingOnPane } from './components/WorkingOnPane';
 import { WaitingForYouPane } from './components/WaitingForYouPane';
 import { ThinkingControls } from './components/ThinkingControls';
-import { StatusBar } from './components/StatusBar';
+import { ThemeSwitcher, ContextBar, SessionUsage } from './components/StatusBar';
 
 export default function App() {
   const { state, client, gatewayUrl, token, connect, disconnect } = useGateway();
@@ -115,13 +115,15 @@ export default function App() {
             <span className="text-accent">Clawd</span>
             <span className="text-text-secondary ml-1 font-normal text-sm">GUI</span>
           </h1>
-          {connected && activeSessionKey && (
-            <span className="text-xs text-text-muted bg-bg-tertiary px-2 py-1 rounded font-mono">
-              {activeSessionKey}
-            </span>
-          )}
+          <ThemeSwitcher />
         </div>
         <div className="flex items-center gap-3">
+          {connected && activeSession && (
+            <>
+              <ContextBar session={activeSession} />
+              <SessionUsage session={activeSession} />
+            </>
+          )}
           {connected && client && activeSessionKey && (
             <ThinkingControls
               showThinking={showThinking}
@@ -135,8 +137,7 @@ export default function App() {
               v{client.helloOk.server.version}
               {client.helloOk.server.host && ` • ${client.helloOk.server.host}`}
               {(() => {
-                const session = sessions.find(s => s.key === activeSessionKey);
-                const model = session?.model?.split('/').pop();
+                const model = activeSession?.model?.split('/').pop();
                 return model ? ` • ${model}` : '';
               })()}
             </span>
@@ -209,8 +210,6 @@ export default function App() {
         </main>
       </div>
 
-      {/* Status Bar */}
-      <StatusBar client={client} session={activeSession} connected={connected} />
     </div>
   );
 }

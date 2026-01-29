@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { GatewayClient } from '../lib/gateway';
 import { SessionEntry } from '../types/gateway';
 
 type ThemeMode = 'dark' | 'light' | 'system';
 
 const THEME_KEY = 'clawd-gui-theme';
 
-// Known Anthropic model context windows
+// Known model context windows
 const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
   'claude-opus-4-5': 200000,
   'claude-sonnet-4': 200000,
@@ -21,12 +20,10 @@ const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
 function getContextWindow(model: string | undefined): number | null {
   if (!model) return null;
   const shortName = model.split('/').pop() || model;
-  // Try exact match first, then prefix match
   if (MODEL_CONTEXT_WINDOWS[shortName]) return MODEL_CONTEXT_WINDOWS[shortName];
   for (const [key, val] of Object.entries(MODEL_CONTEXT_WINDOWS)) {
     if (shortName.startsWith(key) || shortName.includes(key)) return val;
   }
-  // Default for any claude model
   if (shortName.includes('claude')) return 200000;
   return null;
 }
@@ -42,18 +39,13 @@ function formatTokens(n: number): string {
   return String(n);
 }
 
-interface Props {
-  client: GatewayClient | null;
-  session: SessionEntry | undefined;
-  connected: boolean;
-}
+/* ── Theme Switcher ── */
 
-export function StatusBar({ client, session, connected }: Props) {
+export function ThemeSwitcher() {
   const [theme, setTheme] = useState<ThemeMode>(() => {
     return (localStorage.getItem(THEME_KEY) as ThemeMode) || 'dark';
   });
 
-  // Apply theme to document
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem(THEME_KEY, theme);
@@ -68,59 +60,62 @@ export function StatusBar({ client, session, connected }: Props) {
 
   const themeIcon = theme === 'dark' ? '🌙' : theme === 'light' ? '☀️' : '💻';
 
-  // Context window
+  return (
+    <button
+      onClick={cycleTheme}
+      className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary transition-colors"
+      title={`Theme: ${theme} (click to cycle)`}
+    >
+      <span>{themeIcon}</span>
+      <span className="capitalize">{theme}</span>
+    </button>
+  );
+}
+
+/* ── Context Window Bar ── */
+
+export function ContextBar({ session }: { session: SessionEntry }) {
   const model = session?.model;
   const totalTokens = session?.totalTokens ?? 0;
   const contextWindow = getContextWindow(model);
-  const contextPct = contextWindow ? Math.min(100, (totalTokens / contextWindow) * 100) : null;
+  if (!contextWindow) return null;
 
-  // Anthropic usage (session-level token usage as a bar)
-  const isAnthropic = isAnthropicModel(model);
+  const pct = Math.min(100, (totalTokens / contextWindow) * 100);
 
   return (
-    <footer className="flex items-center justify-between px-4 py-1.5 bg-bg-secondary border-t border-border text-[11px] text-text-muted shrink-0 gap-4">
-      {/* Left: Theme switcher */}
-      <button
-        onClick={cycleTheme}
-        className="flex items-center gap-1 hover:text-text-secondary transition-colors"
-        title={`Theme: ${theme}`}
-      >
-        <span>{themeIcon}</span>
-        <span className="capitalize">{theme}</span>
-      </button>
+    <div
+      className="flex items-center gap-1.5 text-[11px] text-text-muted"
+      title={`Context: ${formatTokens(totalTokens)} / ${formatTokens(contextWindow)} tokens (${pct.toFixed(1)}%)`}
+    >
+      <span>Ctx</span>
+      <div className="w-16 h-1.5 bg-bg-tertiary rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${
+            pct > 80 ? 'bg-error' : pct > 50 ? 'bg-warning' : 'bg-accent'
+          }`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span>{pct.toFixed(0)}%</span>
+    </div>
+  );
+}
 
-      {/* Center: Context window */}
-      {connected && session && contextWindow && contextPct !== null && (
-        <div className="flex items-center gap-2" title={`${formatTokens(totalTokens)} / ${formatTokens(contextWindow)} tokens used`}>
-          <span className="text-text-muted">Context:</span>
-          <div className="w-24 h-2 bg-bg-tertiary rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${
-                contextPct > 80 ? 'bg-error' : contextPct > 50 ? 'bg-warning' : 'bg-accent'
-              }`}
-              style={{ width: `${contextPct}%` }}
-            />
-          </div>
-          <span>{contextPct.toFixed(0)}%</span>
-        </div>
-      )}
+/* ── Anthropic Session Usage ── */
 
-      {/* Right: Anthropic session usage */}
-      {connected && session && isAnthropic && (
-        <div className="flex items-center gap-2">
-          <span className="text-text-muted">Session:</span>
-          <div className="flex items-center gap-1.5">
-            <span className="text-accent">{formatTokens(session?.inputTokens ?? 0)}</span>
-            <span className="text-text-muted">in</span>
-            <span className="text-success">{formatTokens(session?.outputTokens ?? 0)}</span>
-            <span className="text-text-muted">out</span>
-            <span className="text-text-muted">·</span>
-            <span>{formatTokens(totalTokens)} total</span>
-          </div>
-        </div>
-      )}
+export function SessionUsage({ session }: { session: SessionEntry }) {
+  if (!isAnthropicModel(session?.model)) return null;
 
-      {!connected && <span>Disconnected</span>}
-    </footer>
+  const input = session?.inputTokens ?? 0;
+  const output = session?.outputTokens ?? 0;
+  const total = session?.totalTokens ?? 0;
+
+  return (
+    <div className="flex items-center gap-1 text-[11px] text-text-muted" title={`Input: ${formatTokens(input)} · Output: ${formatTokens(output)} · Total: ${formatTokens(total)}`}>
+      <span className="text-accent">{formatTokens(input)}</span>
+      <span>↑</span>
+      <span className="text-success">{formatTokens(output)}</span>
+      <span>↓</span>
+    </div>
   );
 }
