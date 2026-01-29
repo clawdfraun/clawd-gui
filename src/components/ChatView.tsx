@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { v4 as uuid } from 'uuid';
 import { GatewayClient } from '../lib/gateway';
-import { ChatMessage, AgentEvent } from '../types/gateway';
+import { ChatMessage, AgentEvent, ContentBlock } from '../types/gateway';
 import { ChatMessageBubble } from './ChatMessage';
 import { AgentEventDisplay } from './AgentEventDisplay';
 import ReactMarkdown from 'react-markdown';

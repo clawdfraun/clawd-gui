@@ -148,7 +148,7 @@ export function ChatMessageBubble({ message, showThinking }: Props) {
   const thinking = showThinking ? extractThinking(message.content) : null;
   const attachments = extractAttachments(message.content);
   // Also check for local attachments stored on the message
-  const localAtts = (message as Record<string, unknown>).localAttachments as AttachmentInfo[] | undefined;
+  const localAtts = (message as unknown as Record<string, unknown>).localAttachments as AttachmentInfo[] | undefined;
   const allAttachments = [...attachments, ...(localAtts || [])];
 
   if (!text.trim() && !thinking && allAttachments.length === 0) return null;
