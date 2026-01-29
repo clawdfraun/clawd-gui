@@ -7,6 +7,23 @@ import { AgentEventDisplay } from './AgentEventDisplay';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+const HEARTBEAT_PROMPT = 'Read HEARTBEAT.md if it exists (workspace context). Follow it strictly. Do not infer or repeat old tasks from prior chats. If nothing needs attention, reply HEARTBEAT_OK.';
+
+function isHeartbeatMessage(msg: ChatMessage): boolean {
+  let text = '';
+  if (typeof msg.content === 'string') {
+    text = msg.content;
+  } else if (Array.isArray(msg.content)) {
+    text = msg.content.map(b => b.text || '').join('');
+  }
+  const trimmed = text.trim();
+  if (trimmed === 'HEARTBEAT_OK') return true;
+  if (trimmed === HEARTBEAT_PROMPT) return true;
+  // Also match if wrapped with other system text (e.g. timestamps)
+  if (trimmed.endsWith(HEARTBEAT_PROMPT)) return true;
+  return false;
+}
+
 interface Props {
   client: GatewayClient;
   sessionKey: string;
@@ -56,7 +73,7 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
         sessionKey,
         limit: 200,
       });
-      setMessages(result.messages || []);
+      setMessages((result.messages || []).filter(m => !isHeartbeatMessage(m)));
     } catch { /* ignore */ }
   }, [client, sessionKey]);
 
