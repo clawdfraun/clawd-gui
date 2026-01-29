@@ -16,14 +16,14 @@ export function WaitingForYouPane() {
       try {
         // Try to fetch from the gateway host (assumes file served or API)
         // For now, try a local fetch approach
-        const response = await fetch('/api/waiting-for-alex');
+        const response = await fetch('/api/pending-tasks');
         if (response.ok) {
           const data = await response.json();
           setItems(data.items || []);
         }
       } catch {
         // Fallback: try reading from localStorage for manual items
-        const stored = localStorage.getItem('clawd-gui-waiting-items');
+        const stored = localStorage.getItem('clawd-gui-pending-tasks');
         if (stored) {
           try { setItems(JSON.parse(stored)); } catch { /* ignore */ }
         }
