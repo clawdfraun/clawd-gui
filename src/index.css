@@ -17,6 +17,7 @@
   --color-warning: #fbbf24;
   --color-error: #f87171;
   --color-info: #60a5fa;
+  --color-stream-pulse: #7c5cfc;
 }
 
 /* Light theme */
@@ -36,6 +37,7 @@
   --color-warning: #f59e0b;
   --color-error: #ef4444;
   --color-info: #3b82f6;
+  --color-stream-pulse: #6b46e5;
 }
 
 /* System theme: apply light when OS prefers light */
@@ -56,6 +58,7 @@
     --color-warning: #f59e0b;
     --color-error: #ef4444;
     --color-info: #3b82f6;
+    --color-stream-pulse: #6b46e5;
   }
 }
 
@@ -98,4 +101,15 @@ p code {
   background: var(--color-bg-tertiary);
   padding: 2px 6px;
   border-radius: 3px;
+}
+
+/* Streaming pulse border — contrasts per theme */
+@keyframes stream-pulse {
+  0%, 100% { border-color: transparent; }
+  50% { border-color: var(--color-stream-pulse); }
+}
+.animate-stream-pulse {
+  animation: stream-pulse 2s ease-in-out infinite;
+  border-width: 1px;
+  border-style: solid;
 }

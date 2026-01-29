@@ -41,6 +41,34 @@ export function useGateway() {
   return { state, client, gatewayUrl, token, connect, disconnect };
 }
 
+export interface AgentInfo {
+  id: string;
+  name?: string;
+  default?: boolean;
+  model?: string;
+}
+
+export function useAgents(client: GatewayClient | null, connected: boolean) {
+  const [agents, setAgents] = useState<AgentInfo[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const refresh = useCallback(async () => {
+    if (!client || client.state !== 'connected') return;
+    setLoading(true);
+    try {
+      const result = await client.request<{ agents: AgentInfo[] }>('agents.list', {});
+      setAgents(result.agents || []);
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, [client]);
+
+  useEffect(() => {
+    if (connected) refresh();
+  }, [connected, refresh]);
+
+  return { agents, loading, refresh };
+}
+
 export function useSessions(client: GatewayClient | null, connected: boolean) {
   const [sessions, setSessions] = useState<SessionEntry[]>([]);
   const [loading, setLoading] = useState(false);

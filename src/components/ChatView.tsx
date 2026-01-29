@@ -69,6 +69,7 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = useRef('');
   const shouldAutoScroll = useRef(true);
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
   const isStreaming = activeRunIds.size > 0;
   // "Thinking" = active run but no streaming text yet
@@ -80,7 +81,9 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
     const el = messagesContainerRef.current;
     if (!el) return;
     const threshold = 100;
-    shouldAutoScroll.current = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+    shouldAutoScroll.current = nearBottom;
+    setShowScrollButton(!nearBottom);
   }, []);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
@@ -302,7 +305,7 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
         {/* Thinking indicator — shown when active run but no text yet */}
         {isThinking && (
           <div className="flex justify-start mb-3">
-            <div className="rounded-xl px-4 py-3 bg-bg-tertiary">
+            <div className="rounded-xl px-4 py-3 bg-bg-tertiary border animate-stream-pulse">
               <div className="flex items-center gap-2">
                 <span className="flex gap-1">
                   <span className="w-2 h-2 bg-accent rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -320,7 +323,7 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
           if (!text || finishedRunIds.has(runId)) return null;
           return (
             <div key={runId} className="flex justify-start mb-3">
-              <div className="max-w-[80%] rounded-xl px-4 py-3 bg-bg-tertiary">
+              <div className="max-w-[80%] rounded-xl px-4 py-3 bg-bg-tertiary border animate-stream-pulse">
                 <div className="prose prose-sm max-w-none text-sm [&_*]:text-inherit">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
                 </div>
@@ -335,6 +338,19 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Scroll to bottom button */}
+      {showScrollButton && (
+        <div className="relative">
+          <button
+            onClick={() => { scrollToBottom(); setShowScrollButton(false); }}
+            className="absolute bottom-2 right-4 w-9 h-9 rounded-full bg-bg-secondary border border-border shadow-lg flex items-center justify-center hover:bg-bg-hover transition-colors z-10"
+            title="Scroll to bottom"
+          >
+            <span className="text-text-secondary text-lg leading-none">↓</span>
+          </button>
+        </div>
+      )}
 
       {/* Attachment error */}
       {attachError && (

@@ -1,39 +1,72 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useGateway, useSessions, useChatStream } from './hooks/useGateway';
+import { useGateway, useSessions, useAgents, useChatStream } from './hooks/useGateway';
 import { ConnectionSettings } from './components/ConnectionSettings';
 import { SessionList } from './components/SessionList';
 import { ChatView } from './components/ChatView';
 import { WorkingOnPane } from './components/WorkingOnPane';
 import { WaitingForYouPane } from './components/WaitingForYouPane';
 import { ThinkingControls } from './components/ThinkingControls';
+import { AgentSelector } from './components/AgentSelector';
 import { ThemeSwitcher, ContextBar, AnthropicUsage } from './components/StatusBar';
 
 export default function App() {
   const { state, client, gatewayUrl, token, connect, disconnect } = useGateway();
   const connected = state === 'connected';
   const { sessions, loading: sessionsLoading, refresh: refreshSessions } = useSessions(client, connected);
+  const { agents, loading: agentsLoading } = useAgents(client, connected);
   const { streamingMessages, agentEvents, activeRunIds, finishedRunIds, streamEndCounter, markRunActive, markRunInactive, clearFinishedStreams } = useChatStream(client);
 
+  const [activeAgentId, setActiveAgentId] = useState(() => localStorage.getItem('clawd-gui-agent-id') || 'main');
   const [activeSessionKey, setActiveSessionKey] = useState('');
   const [thinkingLevel, setThinkingLevel] = useState<string | null>(null);
   const [showThinking, setShowThinking] = useState<boolean>(() => {
     return localStorage.getItem('clawd-gui-show-thinking') === 'true';
   });
 
+  // When agents load, ensure activeAgentId is valid
+  useEffect(() => {
+    if (agents.length > 0) {
+      const valid = agents.find(a => a.id === activeAgentId);
+      if (!valid) {
+        const def = agents.find(a => a.default) || agents[0];
+        setActiveAgentId(def.id);
+        localStorage.setItem('clawd-gui-agent-id', def.id);
+      }
+    }
+  }, [agents, activeAgentId]);
+
+  // Handle agent switch
+  const handleAgentSwitch = useCallback((agentId: string) => {
+    setActiveAgentId(agentId);
+    localStorage.setItem('clawd-gui-agent-id', agentId);
+    // Clear active session so it picks the right one for this agent
+    setActiveSessionKey('');
+  }, []);
+
+  // Filter sessions for the active agent
+  const agentSessions = sessions.filter(s => {
+    // Match sessions that belong to the active agent
+    return s.key.startsWith(`agent:${activeAgentId}:`);
+  });
+
   // Set default session on connect
   useEffect(() => {
     if (connected && client?.sessionDefaults?.mainSessionKey && !activeSessionKey) {
-      setActiveSessionKey(client.sessionDefaults.mainSessionKey);
+      // Use main session key only if it matches the active agent
+      const mainKey = client.sessionDefaults.mainSessionKey;
+      if (mainKey.startsWith(`agent:${activeAgentId}:`)) {
+        setActiveSessionKey(mainKey);
+      }
     }
-  }, [connected, client, activeSessionKey]);
+  }, [connected, client, activeSessionKey, activeAgentId]);
 
   // Also set from sessions list if no active key
   useEffect(() => {
-    if (!activeSessionKey && sessions.length > 0) {
-      const webchat = sessions.find(s => s.key.includes('webchat') || s.channel === 'webchat');
-      setActiveSessionKey(webchat?.key || sessions[0].key);
+    if (!activeSessionKey && agentSessions.length > 0) {
+      const webchat = agentSessions.find(s => s.key.includes('webchat') || s.channel === 'webchat');
+      setActiveSessionKey(webchat?.key || agentSessions[0].key);
     }
-  }, [sessions, activeSessionKey]);
+  }, [agentSessions, activeSessionKey]);
 
   // Periodic session refresh (every 5 minutes) to update derived titles
   useEffect(() => {
@@ -56,7 +89,7 @@ export default function App() {
     if (!client) return;
     try {
       // Use chat.send to a new session key to create it
-      const sessionKey = `agent:main:webchat:${Date.now()}`;
+      const sessionKey = `agent:${activeAgentId}:webchat:${Date.now()}`;
       await client.request('chat.send', {
         sessionKey,
         message: '/new',
@@ -67,7 +100,7 @@ export default function App() {
     } catch (err) {
       console.error('Failed to create session:', err);
     }
-  }, [client, refreshSessions]);
+  }, [client, refreshSessions, activeAgentId]);
 
   // Load thinking level when session changes
   useEffect(() => {
@@ -116,6 +149,13 @@ export default function App() {
             <span className="text-text-secondary ml-1 font-normal text-sm">GUI</span>
           </h1>
           <ThemeSwitcher />
+          {connected && agents.length > 1 && (
+            <AgentSelector
+              agents={agents}
+              activeAgentId={activeAgentId}
+              onSelect={handleAgentSwitch}
+            />
+          )}
         </div>
         <div className="flex items-center gap-3">
           {connected && client && activeSession && (
@@ -162,12 +202,13 @@ export default function App() {
               <WaitingForYouPane />
               <div className="flex-1 min-h-0">
                 <SessionList
-                  sessions={sessions}
+                  sessions={agentSessions}
                   activeKey={activeSessionKey}
                   onSelect={setActiveSessionKey}
                   onRefresh={refreshSessions}
                   onNewSession={handleNewSession}
                   loading={sessionsLoading}
+                  client={client}
                 />
               </div>
             </>

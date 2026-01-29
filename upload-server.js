@@ -4,8 +4,8 @@
 // - GET /usage  — return Claude usage data (cached 2 min)
 
 import { createServer } from 'node:http';
-import { writeFile, mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { writeFile, readFile, mkdir } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fetchClaudeUsage } from './fetch-usage.js';
 
@@ -49,6 +49,26 @@ const server = createServer(async (req, res) => {
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: String(err) }));
+    }
+    return;
+  }
+
+  // GET /file/<name> — serve workspace files (JSON only, no path traversal)
+  if (req.method === 'GET' && req.url?.startsWith('/file/')) {
+    const fileName = decodeURIComponent(req.url.slice(6)).replace(/\.\./g, '');
+    const filePath = resolve('/home/alex/clawd', fileName);
+    if (!filePath.startsWith('/home/alex/clawd/')) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Forbidden' }));
+      return;
+    }
+    try {
+      const data = await readFile(filePath, 'utf-8');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(data);
+    } catch {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not found' }));
     }
     return;
   }
