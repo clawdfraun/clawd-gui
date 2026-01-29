@@ -5,7 +5,7 @@ interface Props {
   onCycleLevel: () => void;
 }
 
-const LEVELS = [null, 'low', 'medium', 'high'] as const;
+const LEVELS = [null, 'low', 'medium', 'high', 'auto'] as const;
 
 function getLevelIndex(level: string | null): number {
   if (!level || level === 'off' || level === 'none') return 0;
@@ -15,6 +15,7 @@ function getLevelIndex(level: string | null): number {
 
 function getLevelLabel(level: string | null): string {
   if (!level || level === 'off' || level === 'none') return 'Off';
+  if (level === 'auto') return 'Auto';
   return level.charAt(0).toUpperCase() + level.slice(1);
 }
 
@@ -41,8 +42,8 @@ function ShowThinkingIcon({ active }: { active: boolean }) {
  */
 function ThinkingLevelIcon({ level }: { level: string | null }) {
   const idx = getLevelIndex(level);
-  // 0=off, 1=low, 2=medium, 3=high
-  // Fill from bottom: off=empty, low=1/3, medium=2/3, high=full
+  const isAuto = level === 'auto';
+  // 0=off, 1=low, 2=medium, 3=high, 4=auto
 
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" strokeWidth="1.5" stroke="currentColor" className="inline-block">
@@ -53,8 +54,16 @@ function ThinkingLevelIcon({ level }: { level: string | null }) {
         </clipPath>
       </defs>
 
-      {/* Fill based on level */}
-      {idx > 0 && (
+      {/* Fill based on level — auto gets a gradient-like pulsing fill */}
+      {isAuto ? (
+        <rect
+          x="2" width="20" y="2" height="20"
+          fill="currentColor"
+          opacity="0.2"
+          clipPath="url(#brain-clip)"
+          className="animate-pulse"
+        />
+      ) : idx > 0 && idx <= 3 && (
         <rect
           x="2" width="20"
           y={idx === 3 ? 2 : idx === 2 ? 8 : 13}
@@ -69,6 +78,12 @@ function ThinkingLevelIcon({ level }: { level: string | null }) {
       <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
       <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
       <path d="M12 5v13" opacity="0.4" />
+
+      {/* "A" overlay for auto mode */}
+      {isAuto && (
+        <text x="12" y="15" textAnchor="middle" fontSize="8" fontWeight="bold"
+          fill="currentColor" stroke="none">A</text>
+      )}
     </svg>
   );
 }

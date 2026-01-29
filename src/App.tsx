@@ -106,7 +106,7 @@ export default function App() {
   useEffect(() => {
     if (!activeSessionKey || !sessions.length) return;
     const session = sessions.find(s => s.key === activeSessionKey);
-    setThinkingLevel(session?.thinkingLevel ?? null);
+    setThinkingLevel(session?.thinkingLevel ?? 'auto');
   }, [activeSessionKey, sessions]);
 
   // Toggle show thinking
@@ -122,15 +122,19 @@ export default function App() {
   const handleCycleThinkingLevel = useCallback(async () => {
     if (!client || !activeSessionKey) return;
 
-    const levels: (string | null)[] = [null, 'low', 'medium', 'high'];
+    const levels: (string | null)[] = [null, 'low', 'medium', 'high', 'auto'];
     const currentIdx = levels.indexOf(thinkingLevel);
     const nextLevel = levels[(currentIdx + 1) % levels.length];
 
     try {
-      await client.request('sessions.patch', {
-        key: activeSessionKey,
-        thinkingLevel: nextLevel,
-      });
+      // For "auto", we store it locally but don't patch the gateway yet
+      // (auto will patch per-message before sending)
+      if (nextLevel !== 'auto') {
+        await client.request('sessions.patch', {
+          key: activeSessionKey,
+          thinkingLevel: nextLevel,
+        });
+      }
       setThinkingLevel(nextLevel);
     } catch (err) {
       console.error('Failed to toggle thinking:', err);
@@ -230,6 +234,7 @@ export default function App() {
               agentEvents={agentEvents}
               activeRunIds={activeRunIds}
               showThinking={showThinking}
+              thinkingLevel={thinkingLevel}
               streamEndCounter={streamEndCounter}
               onMarkRunActive={markRunActive}
               onMarkRunInactive={markRunInactive}

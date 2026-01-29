@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { v4 as uuid } from 'uuid';
 import { GatewayClient } from '../lib/gateway';
 import { ChatMessage, AgentEvent, ContentBlock } from '../types/gateway';
+import { classifyThinking } from '../lib/thinkingClassifier';
 import { ChatMessageBubble } from './ChatMessage';
 import { AgentEventDisplay } from './AgentEventDisplay';
 import ReactMarkdown from 'react-markdown';
@@ -51,6 +52,7 @@ interface Props {
   agentEvents: Map<string, AgentEvent[]>;
   activeRunIds: Set<string>;
   showThinking: boolean;
+  thinkingLevel: string | null;
   streamEndCounter: number;
   onMarkRunActive: (runId: string) => void;
   onMarkRunInactive: (runId: string) => void;
@@ -58,7 +60,7 @@ interface Props {
   onClearFinishedStreams: () => void;
 }
 
-export function ChatView({ client, sessionKey, streamingMessages, agentEvents, activeRunIds, showThinking, streamEndCounter, onMarkRunActive, onMarkRunInactive, finishedRunIds, onClearFinishedStreams }: Props) {
+export function ChatView({ client, sessionKey, streamingMessages, agentEvents, activeRunIds, showThinking, thinkingLevel, streamEndCounter, onMarkRunActive, onMarkRunInactive, finishedRunIds, onClearFinishedStreams }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sending, setSending] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
@@ -143,6 +145,19 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
     onMarkRunActive(runId);
 
     try {
+      // Auto-thinking: classify message and set thinking level before sending
+      if (thinkingLevel === 'auto' && text) {
+        const autoLevel = classifyThinking(text);
+        try {
+          await client.request('sessions.patch', {
+            key: sessionKey,
+            thinkingLevel: autoLevel,
+          });
+        } catch (err) {
+          console.error('Auto-thinking patch failed:', err);
+        }
+      }
+
       await client.request('chat.send', {
         sessionKey,
         message: text || 'See attached file(s)',
@@ -154,7 +169,7 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
       // Remove on failure so dots disappear
       onMarkRunInactive(runId);
     }
-  }, [client, sessionKey, scrollToBottom]);
+  }, [client, sessionKey, scrollToBottom, thinkingLevel]);
 
   const handleSend = async () => {
     const text = inputRef.current.trim();
