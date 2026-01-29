@@ -118,10 +118,10 @@ export default function App() {
           <ThemeSwitcher />
         </div>
         <div className="flex items-center gap-3">
-          {connected && activeSession && (
+          {connected && client && activeSession && (
             <>
               <ContextBar session={activeSession} />
-              <AnthropicUsage client={client} session={activeSession} />
+              <AnthropicUsage session={activeSession} />
             </>
           )}
           {connected && client && activeSessionKey && (

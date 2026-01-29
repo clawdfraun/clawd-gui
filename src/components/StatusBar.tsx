@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { GatewayClient } from '../lib/gateway';
 import { SessionEntry } from '../types/gateway';
 
 type ThemeMode = 'dark' | 'light' | 'system';
@@ -40,13 +39,29 @@ function formatTokens(n: number): string {
   return String(n);
 }
 
-function formatTimeUntil(resetAt: number): string {
-  const diff = resetAt - Date.now();
-  if (diff <= 0) return 'now';
-  const mins = Math.floor(diff / 60000);
+function formatResetTime(resetAt: string): string {
+  const reset = new Date(resetAt);
+  const now = new Date();
+  const diffMs = reset.getTime() - now.getTime();
+  if (diffMs <= 0) return 'now';
+  const mins = Math.floor(diffMs / 60000);
   const hrs = Math.floor(mins / 60);
+  if (hrs > 24) {
+    const days = Math.floor(hrs / 24);
+    return `${days}d ${hrs % 24}h`;
+  }
   if (hrs > 0) return `${hrs}h ${mins % 60}m`;
   return `${mins}m`;
+}
+
+function formatResetDate(resetAt: string): string {
+  const d = new Date(resetAt);
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', hour: 'numeric', minute: undefined, timeZoneName: undefined };
+  // Format like "Resets Feb 1, 11am"
+  const month = d.toLocaleString('en-US', { month: 'short' });
+  const day = d.getDate();
+  const hour = d.toLocaleString('en-US', { hour: 'numeric', hour12: true }).toLowerCase();
+  return `Resets ${month} ${day}, ${hour}`;
 }
 
 /* ── Theme Switcher ── */
@@ -111,67 +126,67 @@ export function ContextBar({ session }: { session: SessionEntry }) {
   );
 }
 
-/* ── Anthropic Provider Usage ── */
+/* ── Anthropic Provider Usage (polled from usage.json) ── */
 
 interface UsageWindow {
   label: string;
   usedPercent: number;
-  resetAt?: number;
+  resetAt?: string;
 }
 
-interface ProviderUsage {
-  provider: string;
-  displayName: string;
+interface UsageData {
   windows: UsageWindow[];
+  updatedAt: number;
   error?: string;
 }
 
-interface UsageStatus {
-  updatedAt: number;
-  providers: ProviderUsage[];
-}
-
-export function AnthropicUsage({ client, session }: { client: GatewayClient; session: SessionEntry }) {
-  const [usage, setUsage] = useState<ProviderUsage | null>(null);
-  const [loading, setLoading] = useState(false);
+export function AnthropicUsage({ session }: { session: SessionEntry }) {
+  const [usage, setUsage] = useState<UsageData | null>(null);
 
   const fetchUsage = useCallback(async () => {
-    if (!client || client.state !== 'connected') return;
-    setLoading(true);
     try {
-      const result = await client.request<UsageStatus>('usage.status', {});
-      const anthropic = result.providers?.find(p => p.provider === 'anthropic');
-      setUsage(anthropic ?? null);
+      const res = await fetch(`http://${window.location.hostname}:9089/usage`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setUsage(data);
     } catch {
-      // ignore
+      // sidecar might not be running
     }
-    setLoading(false);
-  }, [client]);
+  }, []);
 
-  // Fetch on mount and after each stream ends (session changes trigger re-render)
+  // Poll every 2 minutes + on mount
   useEffect(() => {
     fetchUsage();
-  }, [fetchUsage, session?.totalTokens]);
-
-  // Refresh every 2 minutes
-  useEffect(() => {
-    const interval = setInterval(fetchUsage, 2 * 60 * 1000);
+    const interval = setInterval(fetchUsage, 2 * 60_000);
     return () => clearInterval(interval);
   }, [fetchUsage]);
 
   if (!isAnthropicModel(session?.model)) return null;
-  if (loading && !usage) return <span className="text-[11px] text-text-muted">⏳</span>;
-  if (!usage || usage.windows.length === 0) return null;
+  if (!usage || !usage.windows || usage.windows.length === 0) return null;
+
+  const input = session?.inputTokens ?? 0;
+  const output = session?.outputTokens ?? 0;
 
   return (
-    <div className="flex items-center gap-2 text-[11px] text-text-muted">
+    <div className="flex items-center gap-2.5 text-[11px] text-text-muted">
+      {/* Session token counts */}
+      <div className="flex items-center gap-1" title={`Input: ${formatTokens(input)} · Output: ${formatTokens(output)}`}>
+        <span className="text-accent">{formatTokens(input)}</span>
+        <span>↑</span>
+        <span className="text-success">{formatTokens(output)}</span>
+        <span>↓</span>
+      </div>
+
+      <span className="text-border">│</span>
+
+      {/* Provider usage bars */}
       {usage.windows.map((w, i) => (
         <div
           key={i}
           className="flex items-center gap-1"
-          title={`${w.label}: ${w.usedPercent.toFixed(1)}% used${w.resetAt ? ` · resets in ${formatTimeUntil(w.resetAt)}` : ''}`}
+          title={`${w.label}: ${w.usedPercent}% used${w.resetAt ? `\n${formatResetDate(w.resetAt)} (${formatResetTime(w.resetAt)})` : ''}`}
         >
-          <span>{w.label}</span>
+          <span className="whitespace-nowrap">{w.label}</span>
           <div className="w-12 h-1.5 bg-bg-tertiary rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all ${
@@ -180,10 +195,7 @@ export function AnthropicUsage({ client, session }: { client: GatewayClient; ses
               style={{ width: `${Math.max(1, w.usedPercent)}%` }}
             />
           </div>
-          <span>{w.usedPercent.toFixed(0)}%</span>
-          {w.resetAt && (
-            <span className="text-text-muted">({formatTimeUntil(w.resetAt)})</span>
-          )}
+          <span>{w.usedPercent}%</span>
         </div>
       ))}
     </div>
