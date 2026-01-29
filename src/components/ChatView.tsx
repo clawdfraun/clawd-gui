@@ -9,8 +9,8 @@ import remarkGfm from 'remark-gfm';
 
 const HEARTBEAT_PROMPT = 'Read HEARTBEAT.md if it exists (workspace context). Follow it strictly. Do not infer or repeat old tasks from prior chats. If nothing needs attention, reply HEARTBEAT_OK.';
 
-const MAX_ATTACHMENT_BYTES = 512 * 1024; // 0.5 MB (gateway effective limit)
-const MAX_ATTACHMENT_LABEL = '0.5 MB';
+const MAX_INLINE_BYTES = 512 * 1024; // 0.5 MB — WebSocket payload limit for inline base64
+const UPLOAD_URL = 'http://127.0.0.1:9089/upload';
 
 function isToolMessage(msg: ChatMessage): boolean {
   if (!Array.isArray(msg.content)) return false;
@@ -163,9 +163,21 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
       textareaRef.current.style.height = 'auto';
     }
 
-    // Build attachments for API
+    // Split files: small images go inline via WebSocket, everything else uploads to sidecar
+    const inlineFiles: File[] = [];
+    const uploadFiles: File[] = [];
+
+    for (const file of attachments) {
+      if (file.type.startsWith('image/') && file.size <= MAX_INLINE_BYTES) {
+        inlineFiles.push(file);
+      } else {
+        uploadFiles.push(file);
+      }
+    }
+
+    // Build inline image attachments for gateway API
     const fileAtts = await Promise.all(
-      attachments.map(async (file) => {
+      inlineFiles.map(async (file) => {
         const buf = await file.arrayBuffer();
         const b64 = btoa(
           new Uint8Array(buf).reduce((data, byte) => data + String.fromCharCode(byte), '')
@@ -178,13 +190,41 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
       })
     );
 
+    // Upload non-inline files to sidecar
+    const uploadedPaths: string[] = [];
+    for (const file of uploadFiles) {
+      try {
+        const resp = await fetch(UPLOAD_URL, {
+          method: 'POST',
+          headers: { 'X-Filename': file.name },
+          body: file,
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({ error: 'Upload failed' }));
+          setAttachError(`Failed to upload ${file.name}: ${(err as Record<string,string>).error}`);
+          continue;
+        }
+        const result = await resp.json() as { path: string };
+        uploadedPaths.push(result.path);
+      } catch {
+        setAttachError(`Upload server unreachable — is upload-server.js running?`);
+      }
+    }
+
+    // Append file paths to message text so the agent can read them
+    let finalText = text;
+    if (uploadedPaths.length > 0) {
+      const pathList = uploadedPaths.map(p => `[Attached file: ${p}]`).join('\n');
+      finalText = finalText ? `${finalText}\n\n${pathList}` : pathList;
+    }
+
     const localAttachments = attachments.map(f => ({
       fileName: f.name,
       mimeType: f.type || 'application/octet-stream',
     }));
 
     setAttachments([]);
-    await sendMessage(text, fileAtts, localAttachments);
+    await sendMessage(finalText, fileAtts, localAttachments);
     setSending(false);
   };
 
@@ -231,25 +271,8 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
   };
 
   const addFilesWithSizeCheck = (files: File[]) => {
-    const errors: string[] = [];
-    const valid: File[] = [];
-
-    for (const f of files) {
-      if (!f.type.startsWith('image/')) {
-        errors.push(`${f.name}: only image attachments are supported (the gateway drops non-image files)`);
-      } else if (f.size > MAX_ATTACHMENT_BYTES) {
-        errors.push(`${f.name}: too large (max ${MAX_ATTACHMENT_LABEL}) — the WebSocket payload limit is 512 KB, and base64 encoding increases file size ~33%`);
-      } else {
-        valid.push(f);
-      }
-    }
-
-    if (errors.length > 0) {
-      setAttachError(errors.join('; '));
-    } else {
-      setAttachError(null);
-    }
-    if (valid.length > 0) setAttachments(prev => [...prev, ...valid]);
+    setAttachError(null);
+    setAttachments(prev => [...prev, ...files]);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -358,7 +381,6 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
             ref={fileInputRef}
             type="file"
             multiple
-            accept="image/*"
             className="hidden"
             onChange={handleFileSelect}
           />
