@@ -9,6 +9,25 @@ import remarkGfm from 'remark-gfm';
 
 const HEARTBEAT_PROMPT = 'Read HEARTBEAT.md if it exists (workspace context). Follow it strictly. Do not infer or repeat old tasks from prior chats. If nothing needs attention, reply HEARTBEAT_OK.';
 
+const MAX_ATTACHMENT_BYTES = 512 * 1024; // 0.5 MB (gateway effective limit)
+const MAX_ATTACHMENT_LABEL = '0.5 MB';
+
+function isToolMessage(msg: ChatMessage): boolean {
+  if (!Array.isArray(msg.content)) return false;
+  const blocks = msg.content as ContentBlock[];
+  // Assistant messages with only tool_use blocks (no text) are tool calls
+  // User messages with tool_result blocks are tool outputs
+  const hasToolUse = blocks.some(b => b.type === 'tool_use');
+  const hasToolResult = blocks.some(b => b.type === 'tool_result');
+  if (hasToolResult) return true;
+  if (hasToolUse) {
+    // If there's meaningful text alongside tool_use, keep it
+    const hasText = blocks.some(b => b.type === 'text' && (b.text || '').trim());
+    return !hasText;
+  }
+  return false;
+}
+
 function isHeartbeatMessage(msg: ChatMessage): boolean {
   let text = '';
   if (typeof msg.content === 'string') {
@@ -42,6 +61,7 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sending, setSending] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [attachError, setAttachError] = useState<string | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -74,6 +94,7 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
         limit: 200,
       });
       setMessages((result.messages || []).filter(m => !isHeartbeatMessage(m)));
+
     } catch { /* ignore */ }
   }, [client, sessionKey]);
 
@@ -187,9 +208,44 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
     el.style.height = Math.min(el.scrollHeight, 200) + 'px';
   };
 
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          // Give it a readable name
+          const ext = file.type.split('/')[1] || 'png';
+          const named = new File([file], `pasted-image-${Date.now()}.${ext}`, { type: file.type });
+          imageFiles.push(named);
+        }
+      }
+    }
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      addFilesWithSizeCheck(imageFiles);
+    }
+  };
+
+  const addFilesWithSizeCheck = (files: File[]) => {
+    const oversized = files.filter(f => f.size > MAX_ATTACHMENT_BYTES);
+    if (oversized.length > 0) {
+      const names = oversized.map(f => f.name).join(', ');
+      setAttachError(`File too large (max ${MAX_ATTACHMENT_LABEL}): ${names}`);
+      const valid = files.filter(f => f.size <= MAX_ATTACHMENT_BYTES);
+      if (valid.length > 0) setAttachments(prev => [...prev, ...valid]);
+      return;
+    }
+    setAttachError(null);
+    setAttachments(prev => [...prev, ...files]);
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setAttachments(prev => [...prev, ...Array.from(e.target.files!)]);
+      addFilesWithSizeCheck(Array.from(e.target.files!));
     }
   };
 
@@ -201,7 +257,7 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto p-4"
       >
-        {messages.map((msg, i) => (
+        {messages.filter(m => showThinking || !isToolMessage(m)).map((msg, i) => (
           <ChatMessageBubble key={i} message={msg} showThinking={showThinking} />
         ))}
 
@@ -247,6 +303,16 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Attachment error */}
+      {attachError && (
+        <div className="px-4 py-2 border-t border-border">
+          <div className="flex items-center gap-2 text-xs text-error bg-error/10 rounded px-3 py-1.5">
+            <span>⚠️ {attachError} — The WebSocket payload limit is 512 KB, and base64 encoding increases file size ~33%, so attachments must be under 0.5 MB.</span>
+            <button onClick={() => setAttachError(null)} className="ml-auto hover:text-text-primary">×</button>
+          </div>
+        </div>
+      )}
+
       {/* Attachments preview */}
       {attachments.length > 0 && (
         <div className="px-4 py-2 flex gap-2 flex-wrap border-t border-border">
@@ -291,6 +357,7 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
             defaultValue=""
             onChange={handleInput}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder={isStreaming ? "Type to queue a message..." : "Type a message..."}
             rows={1}
             className="flex-1 bg-bg-tertiary border border-border rounded-lg px-4 py-2.5 text-sm resize-none focus:outline-none focus:border-accent"
