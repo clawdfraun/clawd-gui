@@ -1,6 +1,7 @@
 interface Props {
   showThinking: boolean;
   thinkingLevel: string | null;
+  autoResolvedLevel?: string | null;
   onToggleShow: () => void;
   onCycleLevel: () => void;
 }
@@ -88,7 +89,12 @@ function ThinkingLevelIcon({ level }: { level: string | null }) {
   );
 }
 
-export function ThinkingControls({ showThinking, thinkingLevel, onToggleShow, onCycleLevel }: Props) {
+export function ThinkingControls({ showThinking, thinkingLevel, autoResolvedLevel, onToggleShow, onCycleLevel }: Props) {
+  const isAuto = thinkingLevel === 'auto';
+  const resolvedLabel = autoResolvedLevel === null ? 'Off' : autoResolvedLevel
+    ? autoResolvedLevel.charAt(0).toUpperCase() + autoResolvedLevel.slice(1)
+    : null;
+
   return (
     <div className="flex items-center gap-1">
       {/* Show/hide thinking toggle */}
@@ -112,12 +118,17 @@ export function ThinkingControls({ showThinking, thinkingLevel, onToggleShow, on
             ? 'bg-accent/20 text-accent'
             : 'text-text-muted hover:text-text-primary'
         }`}
-        title={`Thinking level: ${getLevelLabel(thinkingLevel)} — click to cycle`}
+        title={`Thinking level: ${getLevelLabel(thinkingLevel)}${isAuto && resolvedLabel ? ` (resolved: ${resolvedLabel})` : ''} — click to cycle`}
       >
         <ThinkingLevelIcon level={thinkingLevel} />
         <span className="text-[10px] font-medium uppercase tracking-wide">
           {getLevelLabel(thinkingLevel)}
         </span>
+        {isAuto && resolvedLabel !== null && (
+          <span className="text-[9px] font-medium uppercase tracking-wide text-text-muted opacity-75">
+            → {resolvedLabel}
+          </span>
+        )}
       </button>
     </div>
   );

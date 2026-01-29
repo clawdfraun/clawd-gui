@@ -18,7 +18,10 @@ export default function App() {
 
   const [activeAgentId, setActiveAgentId] = useState(() => localStorage.getItem('clawd-gui-agent-id') || 'main');
   const [activeSessionKey, setActiveSessionKey] = useState('');
-  const [thinkingLevel, setThinkingLevel] = useState<string | null>(null);
+  const [thinkingLevel, setThinkingLevel] = useState<string | null>(() => {
+    return localStorage.getItem('clawd-gui-thinking-level') || 'auto';
+  });
+  const [autoResolvedLevel, setAutoResolvedLevel] = useState<string | null>(null);
   const [showThinking, setShowThinking] = useState<boolean>(() => {
     return localStorage.getItem('clawd-gui-show-thinking') === 'true';
   });
@@ -103,10 +106,18 @@ export default function App() {
   }, [client, refreshSessions, activeAgentId]);
 
   // Load thinking level when session changes
+  // Respect localStorage preference — if user chose "auto", keep it
   useEffect(() => {
     if (!activeSessionKey || !sessions.length) return;
-    const session = sessions.find(s => s.key === activeSessionKey);
-    setThinkingLevel(session?.thinkingLevel ?? 'auto');
+    const stored = localStorage.getItem('clawd-gui-thinking-level');
+    if (stored === 'auto') {
+      setThinkingLevel('auto');
+    } else if (stored) {
+      setThinkingLevel(stored);
+    } else {
+      const session = sessions.find(s => s.key === activeSessionKey);
+      setThinkingLevel(session?.thinkingLevel ?? 'auto');
+    }
   }, [activeSessionKey, sessions]);
 
   // Toggle show thinking
@@ -136,6 +147,7 @@ export default function App() {
         });
       }
       setThinkingLevel(nextLevel);
+      localStorage.setItem('clawd-gui-thinking-level', nextLevel ?? 'off');
     } catch (err) {
       console.error('Failed to toggle thinking:', err);
     }
@@ -172,6 +184,7 @@ export default function App() {
             <ThinkingControls
               showThinking={showThinking}
               thinkingLevel={thinkingLevel}
+              autoResolvedLevel={autoResolvedLevel}
               onToggleShow={handleToggleShowThinking}
               onCycleLevel={handleCycleThinkingLevel}
             />
@@ -235,6 +248,7 @@ export default function App() {
               activeRunIds={activeRunIds}
               showThinking={showThinking}
               thinkingLevel={thinkingLevel}
+              onAutoResolvedLevel={setAutoResolvedLevel}
               streamEndCounter={streamEndCounter}
               onMarkRunActive={markRunActive}
               onMarkRunInactive={markRunInactive}

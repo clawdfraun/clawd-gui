@@ -53,6 +53,7 @@ interface Props {
   activeRunIds: Set<string>;
   showThinking: boolean;
   thinkingLevel: string | null;
+  onAutoResolvedLevel: (level: string | null) => void;
   streamEndCounter: number;
   onMarkRunActive: (runId: string) => void;
   onMarkRunInactive: (runId: string) => void;
@@ -60,7 +61,7 @@ interface Props {
   onClearFinishedStreams: () => void;
 }
 
-export function ChatView({ client, sessionKey, streamingMessages, agentEvents, activeRunIds, showThinking, thinkingLevel, streamEndCounter, onMarkRunActive, onMarkRunInactive, finishedRunIds, onClearFinishedStreams }: Props) {
+export function ChatView({ client, sessionKey, streamingMessages, agentEvents, activeRunIds, showThinking, thinkingLevel, onAutoResolvedLevel, streamEndCounter, onMarkRunActive, onMarkRunInactive, finishedRunIds, onClearFinishedStreams }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sending, setSending] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
@@ -148,6 +149,8 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
       // Auto-thinking: classify message and set thinking level before sending
       if (thinkingLevel === 'auto' && text) {
         const autoLevel = classifyThinking(text);
+        onAutoResolvedLevel(autoLevel);
+        console.log(`[Auto-Think] "${text.slice(0, 50)}..." → ${autoLevel ?? 'off'}`);
         try {
           await client.request('sessions.patch', {
             key: sessionKey,
