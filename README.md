@@ -33,6 +33,10 @@ Alex is the human behind the vision — Clawd is the one who builds it. 🐾
 - **Auto-resolved indicator** — when in Auto mode, the status bar shows `Auto → Medium` (or whichever level was selected) so you always know what the classifier chose
 - **Persistent preference** — your thinking level choice (including Auto) survives page refreshes and session changes
 
+### Code Blocks
+- **Copy to clipboard** — every code block has a copy icon in the top-right corner; click to copy the contents
+- **HTTP-compatible** — uses a fallback clipboard method that works over LAN HTTP (no HTTPS required)
+
 ### Visual Polish
 - **Streaming pulse border** — messages actively streaming show a pulsing accent-colored border
 - **Thinking pulse border** — the "thinking..." indicator pulses with the same animation while the agent reasons
@@ -196,6 +200,7 @@ clawd-gui/
 │   ├── components/
 │   │   ├── ChatView.tsx           # Chat messages, input, file handling, auto-think
 │   │   ├── ChatMessage.tsx        # Message bubbles, attachments, thinking blocks
+│   │   ├── CodeBlock.tsx          # Code block wrapper with copy-to-clipboard
 │   │   ├── SessionList.tsx        # Session sidebar
 │   │   ├── ConnectionSettings.tsx # Gateway URL/token config
 │   │   ├── ThinkingControls.tsx   # Thinking level toggle + auto indicator

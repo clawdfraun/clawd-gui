@@ -2,6 +2,7 @@ import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ChatMessage as ChatMessageType, ContentBlock } from '../types/gateway';
+import { CodeBlock } from './CodeBlock';
 
 interface Props {
   message: ChatMessageType;
@@ -183,7 +184,15 @@ export function ChatMessageBubble({ message, showThinking }: Props) {
             <p className="text-sm whitespace-pre-wrap">{text}</p>
           ) : (
             <div className="prose prose-sm max-w-none text-sm [&_*]:text-inherit">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  pre: ((props: any) => {
+                    return <CodeBlock inline={false}>{props.children}</CodeBlock>;
+                  }) as any,
+                }}
+              >{text}</ReactMarkdown>
             </div>
           )
         )}
