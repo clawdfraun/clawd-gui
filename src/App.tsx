@@ -161,7 +161,7 @@ export default function App() {
       <header className="flex items-center justify-between px-4 py-2.5 bg-bg-secondary border-b border-border shrink-0">
         <div className="flex items-center gap-3">
           <h1 className="text-lg font-bold tracking-tight">
-            <span className="text-accent">Clawd</span>
+            <span className="text-accent">OpenClaw</span>
             <span className="text-text-secondary ml-1 font-normal text-sm">GUI</span>
           </h1>
           <ThemeSwitcher />

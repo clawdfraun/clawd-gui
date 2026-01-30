@@ -116,8 +116,8 @@ export class GatewayClient {
       minProtocol: PROTOCOL_VERSION,
       maxProtocol: PROTOCOL_VERSION,
       client: {
-        id: 'clawdbot-control-ui',
-        displayName: 'Clawd GUI',
+        id: 'openclaw-control-ui',
+        displayName: 'OpenClaw GUI',
         version: '0.1.0',
         platform: 'web',
         mode: 'webchat',
@@ -136,7 +136,7 @@ export class GatewayClient {
       })
       .catch(() => {
         this.setState('error');
-        this.ws?.close(1008, 'connect failed');
+        this.ws?.close(4008, 'connect failed');
       });
   }
 

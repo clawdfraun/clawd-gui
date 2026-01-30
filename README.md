@@ -1,14 +1,14 @@
-# Clawd GUI
+# OpenClaw GUI
 
-An **alternative** web-based chat interface for [Clawdbot](https://github.com/clawdbot/clawdbot) — a personal AI agent gateway. Built with React, TypeScript, Tailwind CSS v4, and Vite.
+An **alternative** web-based chat interface for [OpenClaw](https://github.com/openclaw/openclaw) — a personal AI agent gateway. Built with React, TypeScript, Tailwind CSS v4, and Vite.
 
-> **Note:** This is a companion GUI, not a replacement for Clawdbot's built-in TUI. You can run both simultaneously — they connect to the same gateway and share sessions.
+> **Note:** This is a companion GUI, not a replacement for OpenClaw's built-in Control UI. You can run both simultaneously — they connect to the same gateway and share sessions.
 
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 ## Built by Clawd 🐾
 
-This project was designed and built by **Clawd** — an AI familiar powered by [Clawdbot](https://github.com/clawdbot/clawdbot) and Claude. Clawd is the personal AI assistant of [Alex Fraundorf](https://github.com/alexfraundorf-com), handling everything from code architecture to browser integration testing to deployment. Every component, feature, and line of CSS in this GUI was written by Clawd as a tool to make interacting with Clawdbot more intuitive and powerful.
+This project was designed and built by **Clawd** — an AI familiar powered by [OpenClaw](https://github.com/openclaw/openclaw) and Claude. Clawd is the personal AI assistant of [Alex Fraundorf](https://github.com/alexfraundorf-com), handling everything from code architecture to browser integration testing to deployment. Every component, feature, and line of CSS in this GUI was written by Clawd as a tool to make interacting with OpenClaw more intuitive and powerful.
 
 Alex is the human behind the vision — Clawd is the one who builds it. 🐾
 
@@ -33,6 +33,12 @@ Alex is the human behind the vision — Clawd is the one who builds it. 🐾
 - **Auto-resolved indicator** — when in Auto mode, the status bar shows `Auto → Medium` (or whichever level was selected) so you always know what the classifier chose
 - **Persistent preference** — your thinking level choice (including Auto) survives page refreshes and session changes
 
+### Performance
+- **Memoized message rendering** — messages only re-render when their content actually changes
+- **Throttled streaming** — markdown parsing capped at ~7/sec during streaming to keep the UI responsive
+- **Isolated input component** — typing is never affected by streaming or message updates
+- **Render limit** — only the last 50 messages render initially, with a "Load older" button for history
+
 ### Code Blocks
 - **Copy to clipboard** — every code block has a copy icon in the top-right corner; click to copy the contents
 - **HTTP-compatible** — uses a fallback clipboard method that works over LAN HTTP (no HTTPS required)
@@ -54,8 +60,8 @@ Alex is the human behind the vision — Clawd is the one who builds it. 🐾
 
 ```
 ┌─────────────────────┐     WebSocket (JSON-RPC)     ┌──────────────┐
-│   Clawd GUI         │◄────────────────────────────►│  Clawdbot    │
-│   (React SPA)       │     port 2100                │  Gateway     │
+│   OpenClaw GUI      │◄────────────────────────────►│  OpenClaw    │
+│   (React SPA)       │     port 18789               │  Gateway     │
 │   port 3000         │                              └──────────────┘
 │                     │     HTTP POST /upload
 │                     │────────────────────────────►┌──────────────┐
@@ -67,9 +73,9 @@ Alex is the human behind the vision — Clawd is the one who builds it. 🐾
                                                     uploads/
 ```
 
-**Why a separate upload server?** Clawdbot's WebSocket has a 512 KB payload limit. Base64-encoding inflates files ~33%, so only images under ~380 KB can go inline. The upload sidecar accepts files up to 50 MB, saves them to disk, and the file path is injected into the message so the agent can read it directly.
+**Why a separate upload server?** OpenClaw's WebSocket has a 512 KB payload limit. Base64-encoding inflates files ~33%, so only images under ~380 KB can go inline. The upload sidecar accepts files up to 50 MB, saves them to disk, and the file path is injected into the message so the agent can read it directly.
 
-**Running alongside the TUI:** Both Clawd GUI and Clawdbot's built-in terminal UI connect to the same gateway over WebSocket. Sessions are shared — you can start a conversation in the TUI and continue it in the GUI, or vice versa. There's no conflict; run whichever you prefer, or both.
+**Running alongside the Control UI:** Both OpenClaw GUI and OpenClaw's built-in Control UI connect to the same gateway over WebSocket. Sessions are shared — you can start a conversation in one and continue it in the other. There's no conflict; run whichever you prefer, or both.
 
 ---
 
@@ -99,14 +105,14 @@ When Auto is active, the header shows the resolved level: **Auto → Medium**. T
 ### Prerequisites
 
 1. **Node.js v18+** — check with `node --version`
-2. **Clawdbot installed and running** — see [Clawdbot docs](https://docs.clawd.bot)
-3. **A gateway token** from Clawdbot's `config.yaml`
+2. **OpenClaw installed and running** — see [OpenClaw docs](https://docs.openclaw.ai)
+3. **A gateway token** from OpenClaw's `openclaw.json`
 
 ### Quick Start
 
 ```bash
 # Clone
-git clone <your-repo-url> clawd-gui
+git clone https://github.com/clawdfraun/clawd-gui.git
 cd clawd-gui
 
 # Install
@@ -135,7 +141,7 @@ mkdir -p ~/.config/systemd/user
 
 cat > ~/.config/systemd/user/clawd-upload.service << 'EOF'
 [Unit]
-Description=Clawd GUI Upload Server
+Description=OpenClaw GUI Upload Server
 After=network.target
 
 [Service]
@@ -158,15 +164,15 @@ Environment variables: `UPLOAD_PORT` (default: 9089), `UPLOAD_DIR` (default: `./
 ### Firewall
 
 ```bash
-sudo ufw allow 3000/tcp comment "Clawd GUI"
-sudo ufw allow 9089/tcp comment "Clawd GUI upload server"
-sudo ufw allow 2100/tcp comment "Clawdbot gateway"
+sudo ufw allow 3000/tcp comment "OpenClaw GUI"
+sudo ufw allow 9089/tcp comment "OpenClaw GUI upload server"
+sudo ufw allow 18789/tcp comment "OpenClaw gateway"
 ```
 
 ### Connect
 
 1. Open `http://<your-server-ip>:3000`
-2. Enter gateway URL: `ws://<your-server-ip>:2100`
+2. Enter gateway URL: `ws://<your-server-ip>:18789`
 3. Enter your gateway token
 4. Click **Connect**
 
@@ -198,8 +204,10 @@ clawd-gui/
 ├── src/
 │   ├── App.tsx                    # Main app — session, stream, thinking state
 │   ├── components/
-│   │   ├── ChatView.tsx           # Chat messages, input, file handling, auto-think
+│   │   ├── ChatView.tsx           # Chat messages, streaming, auto-think
+│   │   ├── ChatInput.tsx          # Isolated input — typing, attachments, upload
 │   │   ├── ChatMessage.tsx        # Message bubbles, attachments, thinking blocks
+│   │   ├── StreamingBubble.tsx    # Throttled streaming response display
 │   │   ├── CodeBlock.tsx          # Code block wrapper with copy-to-clipboard
 │   │   ├── SessionList.tsx        # Session sidebar
 │   │   ├── ConnectionSettings.tsx # Gateway URL/token config

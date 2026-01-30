@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ChatMessage as ChatMessageType, ContentBlock } from '../types/gateway';
@@ -142,7 +142,21 @@ function FileAttachment({ att }: { att: AttachmentInfo }) {
   );
 }
 
-export function ChatMessageBubble({ message, showThinking }: Props) {
+function propsAreEqual(prev: Props, next: Props): boolean {
+  if (prev.showThinking !== next.showThinking) return false;
+  const pm = prev.message;
+  const nm = next.message;
+  if (pm === nm) return true;
+  // Compare by identity fields to avoid re-render on new object references
+  if (pm.role !== nm.role) return false;
+  if (pm.ts !== nm.ts) return false;
+  // Content comparison: string or stringify first text block
+  const prevText = extractText(pm.content);
+  const nextText = extractText(nm.content);
+  return prevText === nextText;
+}
+
+export const ChatMessageBubble = memo(function ChatMessageBubble({ message, showThinking }: Props) {
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
   const text = extractText(message.content);
@@ -214,4 +228,4 @@ export function ChatMessageBubble({ message, showThinking }: Props) {
       </div>
     </div>
   );
-}
+}, propsAreEqual);
