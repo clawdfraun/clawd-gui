@@ -7,8 +7,34 @@ import { ChatMessageBubble } from './ChatMessage';
 import { AgentEventDisplay } from './AgentEventDisplay';
 import { ChatInput } from './ChatInput';
 import { StreamingBubble } from './StreamingBubble';
+import { useReactions } from '../hooks/useReactions';
 
 const HEARTBEAT_PROMPT = 'Read HEARTBEAT.md if it exists (workspace context). Follow it strictly. Do not infer or repeat old tasks from prior chats. If nothing needs attention, reply HEARTBEAT_OK.';
+
+// Detect messages that are a single emoji (for auto-reaction)
+const EMOJI_ONLY_RE = /^\p{Emoji_Presentation}$/u;
+function isSingleEmoji(text: string): boolean {
+  const t = text.trim();
+  // Handle multi-codepoint emoji (👍, ❤️, etc.)
+  if (EMOJI_ONLY_RE.test(t)) return true;
+  // Segmenter approach for complex emoji
+  if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+    const segs = [...new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(t)];
+    if (segs.length === 1) {
+      // Check if it's emoji-like (not a letter/number)
+      return /\p{Emoji}/u.test(t) && !/^[0-9a-zA-Z]$/.test(t);
+    }
+  }
+  return false;
+}
+
+function extractMessageText(msg: ChatMessage): string {
+  if (typeof msg.content === 'string') return msg.content;
+  if (Array.isArray(msg.content)) {
+    return (msg.content as ContentBlock[]).filter(b => b.type === 'text').map(b => b.text || '').join('');
+  }
+  return '';
+}
 
 const MAX_INLINE_BYTES = 512 * 1024; // 0.5 MB — WebSocket payload limit for inline base64
 // Use the same host the browser is connected to (works for LAN access)
@@ -68,6 +94,8 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldAutoScroll = useRef(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
+
+  const { addReaction, removeReaction, getReaction } = useReactions(sessionKey);
 
   const isStreaming = activeRunIds.size > 0;
   // "Thinking" = active run but no streaming text yet
@@ -173,10 +201,53 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
     }
   }, [client, sessionKey, scrollToBottom, thinkingLevel]);
 
-  const filteredMessages = useMemo(() =>
-    messages.filter(m => showThinking || !isToolMessage(m)),
-    [messages, showThinking]
-  );
+  // Process emoji-only assistant messages as auto-reactions on previous user message
+  const emojiAutoReactions = useMemo(() => {
+    const hidden = new Set<number>();
+    const autoReactions = new Map<number, string[]>(); // target msg index -> emojis
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+      if (msg.role === 'assistant') {
+        const text = extractMessageText(msg).trim();
+        if (isSingleEmoji(text)) {
+          // Find previous user message
+          for (let j = i - 1; j >= 0; j--) {
+            if (messages[j].role === 'user') {
+              hidden.add(i);
+              const existing = autoReactions.get(j) || [];
+              existing.push(text);
+              autoReactions.set(j, existing);
+              break;
+            }
+          }
+        }
+      }
+    }
+    return { hidden, autoReactions };
+  }, [messages]);
+
+  const filteredMessages = useMemo(() => {
+    return messages.filter((m, i) => {
+      if (emojiAutoReactions.hidden.has(i)) return false;
+      // Hide assistant messages that are just "[emoji-reaction]" (failed reaction attempts)
+      if (m.role === 'assistant') {
+        const text = extractMessageText(m).trim();
+        if (text.startsWith('[emoji-reaction]') || text.startsWith('[emoji reaction')) return false;
+      }
+      return showThinking || !isToolMessage(m);
+    });
+  }, [messages, showThinking, emojiAutoReactions]);
+
+  // Map from filtered index back to original index for reaction keying
+  const filteredToOriginal = useMemo(() => {
+    const map: number[] = [];
+    messages.forEach((m, i) => {
+      if (emojiAutoReactions.hidden.has(i)) return;
+      if (!showThinking && isToolMessage(m)) return;
+      map.push(i);
+    });
+    return map;
+  }, [messages, showThinking, emojiAutoReactions]);
 
   const INITIAL_RENDER_LIMIT = 50;
   const [renderLimit, setRenderLimit] = useState(INITIAL_RENDER_LIMIT);
@@ -217,9 +288,38 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
             </button>
           </div>
         )}
-        {visibleMessages.map((msg, i) => (
-          <ChatMessageBubble key={i} message={msg} showThinking={showThinking} />
-        ))}
+        {visibleMessages.map((msg, i) => {
+          const offsetIdx = filteredMessages.length <= renderLimit ? i : i + (filteredMessages.length - renderLimit);
+          const origIdx = filteredToOriginal[offsetIdx] ?? offsetIdx;
+          const autoEmojis = emojiAutoReactions.autoReactions.get(origIdx) || [];
+          // Stable reaction key: hash role + timestamp + first 80 chars of text content.
+          // extractMessageText normalizes content format (string vs ContentBlock[]).
+          const msgText = extractMessageText(msg).slice(0, 80);
+          const msgKey = `${msg.role}:${msg.ts || 0}:${msgText}`;
+          const storedReaction = getReaction(msgKey);
+          // Auto-reaction from assistant emoji-only messages takes priority if no stored reaction
+          const autoR = autoEmojis.length > 0 ? { emoji: autoEmojis[0], source: 'assistant' as const } : null;
+          const reaction = storedReaction || autoR;
+          return (
+            <ChatMessageBubble
+              key={i}
+              message={msg}
+              showThinking={showThinking}
+              reaction={reaction}
+              onReact={(emoji) => {
+                addReaction(msgKey, emoji, 'user');
+                // Notify the gateway so the agent sees the reaction
+                const snippet = extractMessageText(msg).slice(0, 100);
+                client.request('chat.inject', {
+                  sessionKey,
+                  message: `[emoji reaction: ${emoji} on "${snippet}"]`,
+                  label: 'emoji-reaction',
+                }).catch(() => { /* best effort */ });
+              }}
+              onRemoveReaction={() => removeReaction(msgKey)}
+            />
+          );
+        })}
 
         {/* Active agent events */}
         {Array.from(agentEvents.entries()).map(([runId, events]) => (

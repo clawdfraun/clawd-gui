@@ -1,12 +1,18 @@
-import { useState, memo } from 'react';
+import { useState, memo, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ChatMessage as ChatMessageType, ContentBlock } from '../types/gateway';
 import { CodeBlock } from './CodeBlock';
+import type { Reaction } from '../hooks/useReactions';
+
+const REACTION_EMOJIS = ['🙂', '👍', '👎', '😊', '😂', '❤️', '🔥', '🤔', '👀', '🎉', '😮', '🙏'];
 
 interface Props {
   message: ChatMessageType;
   showThinking?: boolean;
+  reaction?: Reaction | null;
+  onReact?: (emoji: string) => void;
+  onRemoveReaction?: () => void;
 }
 
 function extractText(content: ChatMessageType['content']): string {
@@ -142,36 +148,91 @@ function FileAttachment({ att }: { att: AttachmentInfo }) {
   );
 }
 
+function EmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => void; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  return (
+    <div ref={ref} className="absolute z-50 bg-bg-secondary border border-border rounded-lg shadow-lg p-1.5 flex gap-0.5 flex-wrap w-[220px]">
+      {REACTION_EMOJIS.map(e => (
+        <button key={e} onClick={() => { onSelect(e); onClose(); }} className="w-8 h-8 flex items-center justify-center rounded hover:bg-bg-hover text-base transition-colors">
+          {e}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ReactionBadge({ reaction, onRemove, isUser }: { reaction: Reaction | null; onRemove?: () => void; isUser?: boolean }) {
+  if (!reaction) return null;
+  const borderColor = reaction.source === 'user' ? 'border-accent/50' : 'border-emerald-500/50';
+  return (
+    <div className={`absolute -bottom-3 -right-3 z-10`}>
+      <span className={`group/badge text-sm px-1.5 py-0.5 rounded-full bg-bg-secondary border ${borderColor} shadow-sm flex items-center gap-0.5 cursor-pointer hover:border-red-400/60 transition-colors`}
+        onClick={onRemove}
+        title="Click to remove"
+      >
+        {reaction.emoji}
+        <span className="hidden group-hover/badge:inline text-[9px] text-red-400 ml-0.5">✕</span>
+      </span>
+    </div>
+  );
+}
+
 function propsAreEqual(prev: Props, next: Props): boolean {
   if (prev.showThinking !== next.showThinking) return false;
+  if (prev.reaction !== next.reaction) return false;
   const pm = prev.message;
   const nm = next.message;
   if (pm === nm) return true;
-  // Compare by identity fields to avoid re-render on new object references
   if (pm.role !== nm.role) return false;
   if (pm.ts !== nm.ts) return false;
-  // Content comparison: string or stringify first text block
   const prevText = extractText(pm.content);
   const nextText = extractText(nm.content);
   return prevText === nextText;
 }
 
-export const ChatMessageBubble = memo(function ChatMessageBubble({ message, showThinking }: Props) {
+export const ChatMessageBubble = memo(function ChatMessageBubble({ message, showThinking, reaction = null, onReact, onRemoveReaction }: Props) {
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
   const text = extractText(message.content);
   const thinking = showThinking ? extractThinking(message.content) : null;
   const attachments = extractAttachments(message.content);
-  // Also check for local attachments stored on the message
   const localAtts = (message as unknown as Record<string, unknown>).localAttachments as AttachmentInfo[] | undefined;
   const allAttachments = [...attachments, ...(localAtts || [])];
+  const [showPicker, setShowPicker] = useState(false);
 
   if (!text.trim() && !thinking && allAttachments.length === 0) return null;
 
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-3`}>
+    <div className={`group flex ${isUser ? 'justify-end' : 'justify-start'} ${reaction ? 'mb-6' : 'mb-3'}`}>
+      <div className="relative max-w-[80%]">
+        {/* Reaction button */}
+        {onReact && !isUser && (
+          <div className={`absolute -top-2 ${isUser ? 'left-0 -translate-x-full pr-1' : 'right-0 translate-x-full pl-1'} opacity-0 group-hover:opacity-100 transition-opacity z-10`}>
+            <button
+              onClick={() => setShowPicker(p => !p)}
+              className="w-6 h-6 rounded-full bg-bg-secondary border border-border text-xs flex items-center justify-center hover:bg-bg-hover transition-colors"
+              title="Add reaction"
+            >
+              😊
+            </button>
+            {showPicker && (
+              <div className={`absolute top-7 ${isUser ? 'right-0' : 'left-0'}`}>
+                <EmojiPicker onSelect={(e) => onReact(e)} onClose={() => setShowPicker(false)} />
+              </div>
+            )}
+          </div>
+        )}
       <div
-        className={`max-w-[80%] rounded-xl px-4 py-3 ${
+        className={`rounded-xl px-4 py-3 ${
           isUser
             ? 'bg-accent/20 text-text-primary'
             : isSystem
@@ -225,6 +286,8 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, show
             {new Date(message.ts).toLocaleTimeString()}
           </div>
         )}
+      </div>
+      <ReactionBadge reaction={reaction} onRemove={onRemoveReaction} isUser={isUser} />
       </div>
     </div>
   );

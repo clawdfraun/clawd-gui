@@ -39,6 +39,11 @@ Alex is the human behind the vision — Clawd is the one who builds it. 🐾
 - **Isolated input component** — typing is never affected by streaming or message updates
 - **Render limit** — only the last 50 messages render initially, with a "Load older" button for history
 
+### Emoji Reactions
+- **Message reactions** — hover over any message to react with an emoji from a curated picker (🙂 👍 👎 😊 😂 ❤️ 🔥 🤔 👀 🎉 😮 🙏)
+- **Persistent reactions** — reactions display below messages and survive page refreshes
+- **Toggle behavior** — click the same emoji again to remove your reaction
+
 ### Code Blocks
 - **Copy to clipboard** — every code block has a copy icon in the top-right corner; click to copy the contents
 - **HTTP-compatible** — uses a fallback clipboard method that works over LAN HTTP (no HTTPS required)
