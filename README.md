@@ -2,6 +2,8 @@
 
 An **alternative** web-based chat interface for [OpenClaw](https://github.com/openclaw/openclaw) — a personal AI agent gateway. Built with React, TypeScript, Tailwind CSS v4, and Vite.
 
+![OpenClaw GUI Screenshot](docs/screenshot.png)
+
 > **Note:** This is a companion GUI, not a replacement for OpenClaw's built-in Control UI. You can run both simultaneously — they connect to the same gateway and share sessions.
 
 ![License](https://img.shields.io/badge/license-MIT-green)
