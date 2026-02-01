@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { getSetting, setSetting } from '../db';
-import { requireAdmin } from '../auth';
+import { getSetting, setSetting } from '../db.js';
+import { requireAdmin } from '../auth.js';
 
 const router = Router();
 

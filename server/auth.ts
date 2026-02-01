@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { getJwtSecret, getUserByUsername, createUser, getUserById, getUserCount } from './db';
+import { getJwtSecret, getUserByUsername, createUser, getUserById, getUserCount } from './db.js';
 
 export interface AuthPayload {
   userId: number;
@@ -20,7 +20,7 @@ declare global {
 
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   // Public routes
-  if (req.path === '/api/auth/login' || req.path === '/api/auth/setup' || req.path === '/api/auth/status') {
+  if (req.path === '/auth/login' || req.path === '/auth/setup' || req.path === '/auth/status') {
     next();
     return;
   }

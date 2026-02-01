@@ -1,9 +1,13 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
-import { authMiddleware, authRouter } from './auth';
-import { usersRouter } from './routes/users';
-import { settingsRouter } from './routes/settings';
+import { fileURLToPath } from 'url';
+import { authMiddleware, authRouter } from './auth.js';
+import { usersRouter } from './routes/users.js';
+import { settingsRouter } from './routes/settings.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001');
@@ -22,7 +26,7 @@ app.use('/api/settings', settingsRouter);
 // Serve static frontend in production
 const distPath = path.join(__dirname, '..', 'dist');
 app.use(express.static(distPath));
-app.get('*', (_req, res) => {
+app.get('/{*splat}', (_req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
