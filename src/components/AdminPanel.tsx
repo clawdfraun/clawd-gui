@@ -16,7 +16,7 @@ interface GatewaySettings {
   gatewayToken: string;
 }
 
-export function AdminPanel({ onClose }: { onClose: () => void }) {
+export function AdminPanel({ onClose, onGatewaySaved }: { onClose: () => void; onGatewaySaved?: () => void }) {
   const { user } = useAuth();
   const [tab, setTab] = useState<'users' | 'gateway'>('users');
   const [users, setUsers] = useState<UserInfo[]>([]);
@@ -57,8 +57,9 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
         method: 'PUT',
         body: JSON.stringify(gateway),
       });
-      setMessage('Gateway settings saved');
+      setMessage('Gateway settings saved — reconnecting...');
       setTimeout(() => setMessage(''), 2000);
+      onGatewaySaved?.();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Failed to save');
     }

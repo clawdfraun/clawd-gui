@@ -36,19 +36,22 @@ export default function App() {
   const [showAdmin, setShowAdmin] = useState(false);
   const [gatewayLoaded, setGatewayLoaded] = useState(false);
 
-  // Fetch gateway settings from server and auto-connect
+  // Load gateway settings and connect
+  const reconnectGateway = useCallback(async () => {
+    disconnect();
+    try {
+      const data = await apiFetch<{ gatewayUrl: string; gatewayToken: string }>('/settings/gateway');
+      if (data.gatewayUrl && data.gatewayToken) {
+        connect(data.gatewayUrl, data.gatewayToken);
+      }
+    } catch { /* ignore */ }
+    setGatewayLoaded(true);
+  }, [connect, disconnect]);
+
+  // Auto-connect on mount
   useEffect(() => {
     if (!user) return;
-    const loadGateway = async () => {
-      try {
-        const data = await apiFetch<{ gatewayUrl: string; gatewayToken: string }>('/settings/gateway');
-        if (data.gatewayUrl && data.gatewayToken) {
-          connect(data.gatewayUrl, data.gatewayToken);
-        }
-      } catch { /* ignore */ }
-      setGatewayLoaded(true);
-    };
-    loadGateway();
+    reconnectGateway();
     return () => { disconnect(); };
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -360,7 +363,7 @@ export default function App() {
         </main>
       </div>
 
-      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
+      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} onGatewaySaved={reconnectGateway} />}
     </div>
   );
 }
