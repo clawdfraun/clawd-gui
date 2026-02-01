@@ -57,9 +57,8 @@ export function AdminPanel({ onClose, onGatewaySaved }: { onClose: () => void; o
         method: 'PUT',
         body: JSON.stringify(gateway),
       });
-      setMessage('Gateway settings saved — reconnecting...');
-      setTimeout(() => setMessage(''), 2000);
       onGatewaySaved?.();
+      onClose();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Failed to save');
     }
