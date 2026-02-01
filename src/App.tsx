@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useGateway, useSessions, useAgents, useChatStream } from './hooks/useGateway';
 import { useAuth } from './hooks/useAuth';
 import { apiFetch } from './lib/api';
@@ -48,19 +48,27 @@ export default function App() {
     setGatewayLoaded(true);
   }, [connect, disconnect]);
 
-  // Auto-connect when user logs in
-  const userRef = useRef(user);
+  // Auto-connect when user logs in (keyed on user id)
+  const userId = user?.id;
   useEffect(() => {
-    const wasNull = !userRef.current;
-    userRef.current = user;
-    if (user && wasNull) {
-      reconnectGateway();
-    }
-    if (!user) {
+    if (!userId) {
       disconnect();
       setGatewayLoaded(false);
+      return;
     }
-  }, [user, reconnectGateway, disconnect]);
+    // Small delay to ensure state is settled after login
+    const t = setTimeout(() => {
+      apiFetch<{ gatewayUrl: string; gatewayToken: string }>('/settings/gateway')
+        .then(data => {
+          if (data.gatewayUrl && data.gatewayToken) {
+            connect(data.gatewayUrl, data.gatewayToken);
+          }
+          setGatewayLoaded(true);
+        })
+        .catch(() => setGatewayLoaded(true));
+    }, 100);
+    return () => { clearTimeout(t); disconnect(); };
+  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Filter agents by user's allowed_agents
   const allowedAgents = user?.allowedAgents || [];
