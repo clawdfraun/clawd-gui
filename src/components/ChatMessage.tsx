@@ -208,15 +208,35 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, show
   const localAtts = (message as unknown as Record<string, unknown>).localAttachments as AttachmentInfo[] | undefined;
   const allAttachments = [...attachments, ...(localAtts || [])];
   const [showPicker, setShowPicker] = useState(false);
+  const [showReactButton, setShowReactButton] = useState(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleTouchStart = () => {
+    if (!onReact || isUser) return;
+    longPressTimer.current = setTimeout(() => {
+      setShowReactButton(true);
+    }, 500);
+  };
+  const handleTouchEnd = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  };
+  const handleTouchMove = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  };
 
   if (!text.trim() && !thinking && allAttachments.length === 0) return null;
 
   return (
     <div className={`group flex ${isUser ? 'justify-end' : 'justify-start'} ${reaction ? 'mb-6' : 'mb-3'}`}>
-      <div className="relative max-w-[95%] md:max-w-[80%]">
-        {/* Reaction button */}
+      <div
+        className="relative max-w-[95%] md:max-w-[80%]"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchMove={handleTouchMove}
+      >
+        {/* Reaction button — hover on desktop, long-press on mobile */}
         {onReact && !isUser && (
-          <div className={`absolute -top-2 ${isUser ? 'left-0 -translate-x-full pr-1' : 'right-0 translate-x-full pl-1'} opacity-0 group-hover:opacity-100 transition-opacity z-10`}>
+          <div className={`absolute -top-2 ${isUser ? 'left-0 -translate-x-full pr-1' : 'right-0 translate-x-full pl-1'} ${showReactButton ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity z-10`}>
             <button
               onClick={() => setShowPicker(p => !p)}
               className="w-6 h-6 rounded-full bg-bg-secondary border border-border text-xs flex items-center justify-center hover:bg-bg-hover transition-colors"
@@ -226,7 +246,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, show
             </button>
             {showPicker && (
               <div className={`absolute top-7 ${isUser ? 'right-0' : 'left-0'}`}>
-                <EmojiPicker onSelect={(e) => onReact(e)} onClose={() => setShowPicker(false)} />
+                <EmojiPicker onSelect={(e) => { onReact(e); setShowReactButton(false); }} onClose={() => { setShowPicker(false); setShowReactButton(false); }} />
               </div>
             )}
           </div>
