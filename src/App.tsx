@@ -19,7 +19,8 @@ export default function App() {
   const { agents, loading: agentsLoading } = useAgents(client, connected);
   const { streamingMessages, agentEvents, activeRunIds, finishedRunIds, streamEndCounter, markRunActive, markRunInactive, clearFinishedStreams } = useChatStream(client);
 
-  const [activeAgentId, setActiveAgentId] = useState(() => localStorage.getItem('clawd-gui-agent-id') || 'main');
+  const lsKey = (k: string) => `clawd-gui-${user?.username || 'anon'}-${k}`;
+  const [activeAgentId, setActiveAgentId] = useState(() => localStorage.getItem(lsKey('agent-id')) || 'main');
   const [activeSessionKey, setActiveSessionKey] = useState('');
   const [thinkingLevel, setThinkingLevel] = useState<string | null>(() => {
     return localStorage.getItem('clawd-gui-thinking-level') || 'auto';
@@ -84,14 +85,14 @@ export default function App() {
       if (!valid) {
         const def = filteredAgents.find(a => a.default) || filteredAgents[0];
         setActiveAgentId(def.id);
-        localStorage.setItem('clawd-gui-agent-id', def.id);
+        localStorage.setItem(lsKey('agent-id'), def.id);
       }
     }
   }, [filteredAgents, activeAgentId]);
 
   const handleAgentSwitch = useCallback((agentId: string) => {
     setActiveAgentId(agentId);
-    localStorage.setItem('clawd-gui-agent-id', agentId);
+    localStorage.setItem(lsKey('agent-id'), agentId);
     setActiveSessionKey('');
   }, []);
 
@@ -298,8 +299,8 @@ export default function App() {
         {sidebarOpen && <aside className="w-72 bg-bg-secondary border-r border-border flex flex-col shrink-0">
           {connected && client && (
             <>
-              <WorkingOnPane client={client} />
-              <WaitingForYouPane />
+              <WorkingOnPane client={client} allowedAgents={allowedAgents} />
+              {user?.isAdmin && <WaitingForYouPane />}
               <div className="flex-1 min-h-0">
                 <SessionList
                   sessions={agentSessions}

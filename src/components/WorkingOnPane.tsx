@@ -4,6 +4,7 @@ import { SessionEntry, EventFrame } from '../types/gateway';
 
 interface Props {
   client: GatewayClient;
+  allowedAgents?: string[];
 }
 
 interface ActiveSession {
@@ -22,7 +23,7 @@ interface WorkingItem {
 
 const FILE_URL = `http://${window.location.hostname}:9089/file/working-on.json`;
 
-export function WorkingOnPane({ client }: Props) {
+export function WorkingOnPane({ client, allowedAgents = ['*'] }: Props) {
   const [sessions, setSessions] = useState<ActiveSession[]>([]);
   const [items, setItems] = useState<WorkingItem[]>([]);
 
@@ -48,6 +49,11 @@ export function WorkingOnPane({ client }: Props) {
       const active = (result.sessions || [])
         .filter(s => s.lastActivityAt && (Date.now() - new Date(s.lastActivityAt).getTime()) < 15 * 60 * 1000)
         .filter(s => s.key !== 'agent:main:main') // exclude main session
+        .filter(s => {
+          if (allowedAgents.includes('*')) return true;
+          const match = s.key.match(/^agent:([^:]+):/);
+          return match ? allowedAgents.includes(match[1]) : false;
+        })
         .map(s => ({
           key: s.key,
           title: s.derivedTitle || s.label || s.key.split(':').pop() || s.key,
