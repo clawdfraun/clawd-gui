@@ -31,6 +31,34 @@ export function AdminPanel({ onClose, onGatewaySaved }: { onClose: () => void; o
   const [newIsAdmin, setNewIsAdmin] = useState(false);
   const [newAgents, setNewAgents] = useState('*');
 
+  // Edit user state
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editDisplayName, setEditDisplayName] = useState('');
+  const [editAgents, setEditAgents] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+
+  const startEdit = (u: UserInfo) => {
+    setEditingId(u.id);
+    setEditDisplayName(u.displayName || '');
+    setEditAgents(u.allowedAgents.join(', '));
+    setEditPassword('');
+  };
+
+  const handleSaveEdit = async (id: number) => {
+    try {
+      const agents = editAgents.split(',').map(a => a.trim()).filter(Boolean);
+      const body: Record<string, unknown> = { displayName: editDisplayName || null, allowedAgents: agents };
+      if (editPassword) body.password = editPassword;
+      await apiFetch(`/users/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+      setEditingId(null);
+      loadUsers();
+      setMessage('User updated');
+      setTimeout(() => setMessage(''), 2000);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Failed to update');
+    }
+  };
+
   const loadUsers = useCallback(async () => {
     try {
       const data = await apiFetch<{ users: UserInfo[] }>('/users');
@@ -149,31 +177,70 @@ export function AdminPanel({ onClose, onGatewaySaved }: { onClose: () => void; o
               {/* Existing users */}
               <div className="space-y-2">
                 {users.map(u => (
-                  <div key={u.id} className="flex items-center justify-between bg-bg-primary rounded p-3 border border-border">
-                    <div>
-                      <span className="text-sm font-medium">{u.username}</span>
-                      {u.displayName && <span className="text-xs text-text-muted ml-2">({u.displayName})</span>}
-                      {u.isAdmin && <span className="text-[10px] bg-accent/20 text-accent px-1.5 py-0.5 rounded ml-2">admin</span>}
-                      <div className="text-[10px] text-text-muted mt-1">
-                        Agents: {u.allowedAgents.join(', ')}
+                  <div key={u.id} className="bg-bg-primary rounded p-3 border border-border">
+                    {editingId === u.id ? (
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium">{u.username}</div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            value={editDisplayName}
+                            onChange={e => setEditDisplayName(e.target.value)}
+                            placeholder="Display name"
+                            className="bg-bg-secondary border border-border rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent"
+                          />
+                          <input
+                            value={editAgents}
+                            onChange={e => setEditAgents(e.target.value)}
+                            placeholder="Allowed agents (* = all)"
+                            className="bg-bg-secondary border border-border rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent"
+                          />
+                          <input
+                            type="password"
+                            value={editPassword}
+                            onChange={e => setEditPassword(e.target.value)}
+                            placeholder="New password (leave blank to keep)"
+                            className="col-span-2 bg-bg-secondary border border-border rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2 justify-end">
+                          <button onClick={() => setEditingId(null)} className="px-2 py-1 text-xs text-text-muted hover:text-text-primary">Cancel</button>
+                          <button onClick={() => handleSaveEdit(u.id)} className="px-3 py-1 bg-accent hover:bg-accent-hover rounded text-xs font-medium">Save</button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleToggleAdmin(u)}
-                        disabled={u.id === user.id}
-                        className="text-[10px] text-text-muted hover:text-text-primary disabled:opacity-30"
-                      >
-                        {u.isAdmin ? 'Revoke admin' : 'Make admin'}
-                      </button>
-                      <button
-                        onClick={() => handleDeleteUser(u.id)}
-                        disabled={u.id === user.id}
-                        className="text-[10px] text-error hover:text-error/80 disabled:opacity-30"
-                      >
-                        Delete
-                      </button>
-                    </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-sm font-medium">{u.username}</span>
+                          {u.displayName && <span className="text-xs text-text-muted ml-2">({u.displayName})</span>}
+                          {u.isAdmin && <span className="text-[10px] bg-accent/20 text-accent px-1.5 py-0.5 rounded ml-2">admin</span>}
+                          <div className="text-[10px] text-text-muted mt-1">
+                            Agents: {u.allowedAgents.join(', ')}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => startEdit(u)}
+                            className="text-[10px] text-text-muted hover:text-text-primary"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleToggleAdmin(u)}
+                            disabled={u.id === user.id}
+                            className="text-[10px] text-text-muted hover:text-text-primary disabled:opacity-30"
+                          >
+                            {u.isAdmin ? 'Revoke admin' : 'Make admin'}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUser(u.id)}
+                            disabled={u.id === user.id}
+                            className="text-[10px] text-error hover:text-error/80 disabled:opacity-30"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
