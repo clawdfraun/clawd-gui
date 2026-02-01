@@ -25,6 +25,12 @@ export default function App() {
   const [showThinking, setShowThinking] = useState<boolean>(() => {
     return localStorage.getItem('clawd-gui-show-thinking') === 'true';
   });
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
+    const stored = localStorage.getItem('clawd-gui-sidebar-open');
+    if (stored !== null) return stored === 'true';
+    // Default: collapsed on mobile, open on desktop
+    return window.innerWidth >= 768;
+  });
 
   // When agents load, ensure activeAgentId is valid
   useEffect(() => {
@@ -156,10 +162,34 @@ export default function App() {
   const activeSession = sessions.find(s => s.key === activeSessionKey);
 
   return (
-    <div className="h-screen flex flex-col bg-bg-primary">
+    <div className="h-screen flex flex-col bg-bg-primary" style={{ height: '100dvh' }}>
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-2.5 bg-bg-secondary border-b border-border shrink-0">
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setSidebarOpen(prev => {
+              const next = !prev;
+              localStorage.setItem('clawd-gui-sidebar-open', String(next));
+              return next;
+            })}
+            className="p-1.5 rounded hover:bg-bg-primary text-text-secondary hover:text-text-primary transition-colors"
+            title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              {sidebarOpen ? (
+                <>
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <line x1="9" y1="3" x2="9" y2="21" />
+                </>
+              ) : (
+                <>
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
+                </>
+              )}
+            </svg>
+          </button>
           <h1 className="text-lg font-bold tracking-tight">
             <span className="text-accent">OpenClaw</span>
             <span className="text-text-secondary ml-1 font-normal text-sm">GUI</span>
@@ -212,7 +242,7 @@ export default function App() {
       {/* Main content */}
       <div className="flex flex-1 min-h-0">
         {/* Sidebar */}
-        <aside className="w-72 bg-bg-secondary border-r border-border flex flex-col shrink-0">
+        {sidebarOpen && <aside className="w-72 bg-bg-secondary border-r border-border flex flex-col shrink-0">
           {connected && client && (
             <>
               <WorkingOnPane client={client} />
@@ -221,7 +251,13 @@ export default function App() {
                 <SessionList
                   sessions={agentSessions}
                   activeKey={activeSessionKey}
-                  onSelect={setActiveSessionKey}
+                  onSelect={(key: string) => {
+                    setActiveSessionKey(key);
+                    if (window.innerWidth < 768) {
+                      setSidebarOpen(false);
+                      localStorage.setItem('clawd-gui-sidebar-open', 'false');
+                    }
+                  }}
                   onRefresh={refreshSessions}
                   onNewSession={handleNewSession}
                   loading={sessionsLoading}
@@ -235,7 +271,7 @@ export default function App() {
               Not connected
             </div>
           )}
-        </aside>
+        </aside>}
 
         {/* Chat area */}
         <main className="flex-1 min-w-0">

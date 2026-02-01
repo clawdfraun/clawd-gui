@@ -113,7 +113,14 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
   }, []);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
-    messagesEndRef.current?.scrollIntoView({ behavior });
+    const el = messagesContainerRef.current;
+    if (el) {
+      if (behavior === 'instant') {
+        el.scrollTop = el.scrollHeight;
+      } else {
+        el.scrollTo({ top: el.scrollHeight, behavior });
+      }
+    }
   }, []);
 
   // Load history
@@ -141,14 +148,27 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
         // Mark finished streams as cleared AFTER history is loaded
         setClearedStreamIds(new Set(finishedRunIds));
         onClearFinishedStreams();
+        // Force scroll to bottom after history loads with new messages
+        if (shouldAutoScroll.current) {
+          setTimeout(() => scrollToBottom('instant'), 50);
+          setTimeout(() => scrollToBottom('instant'), 200);
+        }
       });
     }
-  }, [streamEndCounter, loadHistory, onClearFinishedStreams]);
+  }, [streamEndCounter, loadHistory, onClearFinishedStreams, scrollToBottom]);
 
   // Auto-scroll
   useEffect(() => {
     if (shouldAutoScroll.current) {
       scrollToBottom();
+      // Extra scroll after a short delay to catch layout reflows (mobile keyboard dismiss)
+      const t = setTimeout(() => {
+        if (shouldAutoScroll.current) {
+          const el = messagesContainerRef.current;
+          if (el) el.scrollTop = el.scrollHeight;
+        }
+      }, 150);
+      return () => clearTimeout(t);
     }
   }, [messages, streamingMessages, isThinking, scrollToBottom]);
 

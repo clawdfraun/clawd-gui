@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, memo } from 'react';
+import { useState, useRef, useCallback, useEffect, memo } from 'react';
 
 const MAX_INLINE_BYTES = 512 * 1024;
 const UPLOAD_URL = `http://${window.location.hostname}:9089/upload`;
@@ -25,6 +25,10 @@ export const ChatInput = memo(function ChatInput({ isStreaming, sending, onSend,
     if (textareaRef.current) {
       textareaRef.current.value = '';
       textareaRef.current.style.height = 'auto';
+      // On mobile, blur to dismiss keyboard so layout reflows properly
+      if (window.innerWidth < 768) {
+        textareaRef.current.blur();
+      }
     }
 
     // Split files: small images go inline, everything else uploads
@@ -87,6 +91,20 @@ export const ChatInput = memo(function ChatInput({ isStreaming, sending, onSend,
     setAttachments([]);
     onSend(finalText, fileAtts, localAttachments);
   }, [attachments, onSend]);
+
+  // On mobile, scroll input into view when keyboard opens/closes
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => {
+      // When keyboard closes (viewport height increases), scroll to bottom of page
+      requestAnimationFrame(() => {
+        textareaRef.current?.scrollIntoView({ block: 'end', behavior: 'instant' });
+      });
+    };
+    vv.addEventListener('resize', onResize);
+    return () => vv.removeEventListener('resize', onResize);
+  }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

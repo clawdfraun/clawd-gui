@@ -213,7 +213,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, show
 
   return (
     <div className={`group flex ${isUser ? 'justify-end' : 'justify-start'} ${reaction ? 'mb-6' : 'mb-3'}`}>
-      <div className="relative max-w-[80%]">
+      <div className="relative max-w-[95%] md:max-w-[80%]">
         {/* Reaction button */}
         {onReact && !isUser && (
           <div className={`absolute -top-2 ${isUser ? 'left-0 -translate-x-full pr-1' : 'right-0 translate-x-full pl-1'} opacity-0 group-hover:opacity-100 transition-opacity z-10`}>
