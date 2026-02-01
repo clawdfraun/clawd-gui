@@ -85,9 +85,10 @@ interface Props {
   onMarkRunInactive: (runId: string) => void;
   finishedRunIds: Set<string>;
   onClearFinishedStreams: () => void;
+  runSessionMap?: Map<string, string>;
 }
 
-export function ChatView({ client, sessionKey, streamingMessages, agentEvents, activeRunIds, showThinking, thinkingLevel, onAutoResolvedLevel, streamEndCounter, onMarkRunActive, onMarkRunInactive, finishedRunIds, onClearFinishedStreams }: Props) {
+export function ChatView({ client, sessionKey, streamingMessages, agentEvents, activeRunIds, showThinking, thinkingLevel, onAutoResolvedLevel, streamEndCounter, onMarkRunActive, onMarkRunInactive, finishedRunIds, onClearFinishedStreams, runSessionMap }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sending, setSending] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -97,9 +98,28 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
 
   const { addReaction, removeReaction, getReaction } = useReactions(sessionKey);
 
-  const isStreaming = activeRunIds.size > 0;
+  // Filter streaming data to only runs belonging to the current session
+  const isRunForSession = useCallback((runId: string) => {
+    if (!runSessionMap) return true;
+    const runSession = runSessionMap.get(runId);
+    // If we don't know the session (e.g. locally initiated), show it
+    if (!runSession) return true;
+    return runSession === sessionKey;
+  }, [runSessionMap, sessionKey]);
+
+  const sessionStreamingMessages = new Map(
+    Array.from(streamingMessages.entries()).filter(([runId]) => isRunForSession(runId))
+  );
+  const sessionActiveRunIds = new Set(
+    Array.from(activeRunIds).filter(runId => isRunForSession(runId))
+  );
+  const sessionAgentEvents = new Map(
+    Array.from(agentEvents.entries()).filter(([runId]) => isRunForSession(runId))
+  );
+
+  const isStreaming = sessionActiveRunIds.size > 0;
   // "Thinking" = active run but no streaming text yet
-  const hasStreamingText = streamingMessages.size > 0 && Array.from(streamingMessages.values()).some(t => t.length > 0);
+  const hasStreamingText = sessionStreamingMessages.size > 0 && Array.from(sessionStreamingMessages.values()).some(t => t.length > 0);
   const isThinking = isStreaming && !hasStreamingText;
 
   // Track if user is near bottom
@@ -170,7 +190,7 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
       }, 150);
       return () => clearTimeout(t);
     }
-  }, [messages, streamingMessages, isThinking, scrollToBottom]);
+  }, [messages, sessionStreamingMessages.size, isThinking, scrollToBottom]);
 
   const handleSendFromInput = useCallback(async (text: string, fileAtts: { content: string; mimeType: string; fileName: string }[], localAttachments: { fileName: string; mimeType: string }[]) => {
     setSending(true);
@@ -342,7 +362,7 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
         })}
 
         {/* Active agent events */}
-        {Array.from(agentEvents.entries()).map(([runId, events]) => (
+        {Array.from(sessionAgentEvents.entries()).map(([runId, events]) => (
           <AgentEventDisplay key={runId} events={events} />
         ))}
 
@@ -363,7 +383,7 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
         )}
 
         {/* Streaming responses — keep showing until history has loaded the final version */}
-        {Array.from(streamingMessages.entries()).map(([runId, text]) => {
+        {Array.from(sessionStreamingMessages.entries()).map(([runId, text]) => {
           if (!text || clearedStreamIds.has(runId)) return null;
           return (
             <StreamingBubble

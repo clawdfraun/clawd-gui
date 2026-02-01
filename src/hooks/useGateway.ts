@@ -86,6 +86,7 @@ export function useChatStream(client: GatewayClient | null, allowedAgents: strin
   const [agentEvents, setAgentEvents] = useState<Map<string, AgentEvent[]>>(new Map());
   const [activeRunIds, setActiveRunIds] = useState<Set<string>>(new Set());
   const [finishedRunIds, setFinishedRunIds] = useState<Set<string>>(new Set());
+  const [runSessionMap, setRunSessionMap] = useState<Map<string, string>>(new Map());
   // Incremented when a stream ends, so consumers can react
   const [streamEndCounter, setStreamEndCounter] = useState(0);
   const handlersRef = useRef<(() => void)[]>([]);
@@ -104,6 +105,9 @@ export function useChatStream(client: GatewayClient | null, allowedAgents: strin
 
         if (evtState === 'delta') {
           setActiveRunIds(prev => new Set(prev).add(runId));
+          if (chatEvt.sessionKey) {
+            setRunSessionMap(prev => { const n = new Map(prev); n.set(runId, chatEvt.sessionKey); return n; });
+          }
           // Extract text from the delta message.
           // Delta messages contain the FULL accumulated assistant message so far,
           // not just the new characters. We always replace, never append.
@@ -196,5 +200,5 @@ export function useChatStream(client: GatewayClient | null, allowedAgents: strin
     });
   }, []);
 
-  return { streamingMessages, agentEvents, activeRunIds, finishedRunIds, streamEndCounter, markRunActive, markRunInactive, clearFinishedStreams };
+  return { streamingMessages, agentEvents, activeRunIds, finishedRunIds, streamEndCounter, markRunActive, markRunInactive, clearFinishedStreams, runSessionMap };
 }
