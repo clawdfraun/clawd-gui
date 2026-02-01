@@ -79,7 +79,10 @@ export function WorkingOnPane({ client, allowedAgents = ['*'] }: Props) {
     return () => { clearInterval(itemInterval); clearInterval(sessionInterval); unsub(); };
   }, [client, fetchItems, refreshSessions]);
 
-  const hasContent = items.length > 0 || sessions.length > 0;
+  // File-based items are agent-agnostic (admin only); non-admins see only sessions
+  const isAdmin = allowedAgents.includes('*');
+  const visibleItems = isAdmin ? items : [];
+  const hasContent = visibleItems.length > 0 || sessions.length > 0;
 
   const statusIcon: Record<string, string> = {
     running: '🔄',
@@ -97,7 +100,7 @@ export function WorkingOnPane({ client, allowedAgents = ['*'] }: Props) {
           <p className="text-xs text-text-muted px-3 py-3">Nothing active</p>
         ) : (
           <>
-            {items.map(item => (
+            {visibleItems.map(item => (
               <div key={item.id} className="px-3 py-2 border-b border-border/30">
                 <div className="flex items-center gap-2">
                   <span className="text-xs shrink-0">{statusIcon[item.status || 'running']}</span>
