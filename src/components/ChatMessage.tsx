@@ -227,7 +227,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, show
   if (!text.trim() && !thinking && allAttachments.length === 0) return null;
 
   return (
-    <div className={`group flex ${isUser ? 'justify-end' : 'justify-start'} ${reaction ? 'mb-6' : 'mb-3'}`}>
+    <div className={`group flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
       <div
         className="relative max-w-[95%] md:max-w-[80%]"
         onTouchStart={handleTouchStart}
