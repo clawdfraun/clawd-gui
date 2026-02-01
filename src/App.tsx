@@ -17,7 +17,7 @@ export default function App() {
   const connected = state === 'connected';
   const { sessions, loading: sessionsLoading, refresh: refreshSessions } = useSessions(client, connected);
   const { agents, loading: agentsLoading } = useAgents(client, connected);
-  const { streamingMessages, agentEvents, activeRunIds, finishedRunIds, streamEndCounter, markRunActive, markRunInactive, clearFinishedStreams } = useChatStream(client);
+  const { streamingMessages, agentEvents, activeRunIds, finishedRunIds, streamEndCounter, markRunActive, markRunInactive, clearFinishedStreams } = useChatStream(client, user?.allowedAgents);
 
   const lsKey = (k: string) => `clawd-gui-${user?.username || 'anon'}-${k}`;
   const [activeAgentId, setActiveAgentId] = useState(() => localStorage.getItem(lsKey('agent-id')) || 'main');

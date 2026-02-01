@@ -75,7 +75,13 @@ export function useSessions(client: GatewayClient | null, connected: boolean) {
   return { sessions, loading, refresh };
 }
 
-export function useChatStream(client: GatewayClient | null) {
+function isAllowedSession(sessionKey: string, allowedAgents: string[]): boolean {
+  if (allowedAgents.includes('*')) return true;
+  const match = sessionKey.match(/^agent:([^:]+):/);
+  return match ? allowedAgents.includes(match[1]) : false;
+}
+
+export function useChatStream(client: GatewayClient | null, allowedAgents: string[] = ['*']) {
   const [streamingMessages, setStreamingMessages] = useState<Map<string, string>>(new Map());
   const [agentEvents, setAgentEvents] = useState<Map<string, AgentEvent[]>>(new Map());
   const [activeRunIds, setActiveRunIds] = useState<Set<string>>(new Set());
@@ -88,6 +94,10 @@ export function useChatStream(client: GatewayClient | null) {
     if (!client) return;
 
     const unsub = client.onEvent((evt: EventFrame) => {
+      // Filter events to only allowed agents
+      const evtSessionKey = (evt.payload as Record<string, unknown>)?.sessionKey as string | undefined;
+      if (evtSessionKey && !isAllowedSession(evtSessionKey, allowedAgents)) return;
+
       if (evt.event === 'chat') {
         const chatEvt = evt.payload as ChatEvent;
         const { runId, state: evtState } = chatEvt;
