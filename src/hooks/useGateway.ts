@@ -2,21 +2,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createGateway, getGateway, GatewayClient, ConnectionState } from '../lib/gateway';
 import { EventFrame, SessionEntry, ChatEvent, AgentEvent } from '../types/gateway';
 
-const LS_URL = 'clawd-gui-gateway-url';
-const LS_TOKEN = 'clawd-gui-gateway-token';
-
 export function useGateway() {
   const [state, setState] = useState<ConnectionState>('disconnected');
   const [client, setClient] = useState<GatewayClient | null>(null);
-  const [gatewayUrl, setGatewayUrl] = useState(() => localStorage.getItem(LS_URL) || 'ws://127.0.0.1:18789');
-  const [token, setToken] = useState(() => localStorage.getItem(LS_TOKEN) || '');
 
   const connect = useCallback((url: string, tok: string) => {
-    localStorage.setItem(LS_URL, url);
-    localStorage.setItem(LS_TOKEN, tok);
-    setGatewayUrl(url);
-    setToken(tok);
-
     const gw = createGateway(url, tok);
     gw.onStateChange(setState);
     gw.start();
@@ -29,16 +19,7 @@ export function useGateway() {
     setState('disconnected');
   }, []);
 
-  // Auto-connect on mount if credentials exist
-  useEffect(() => {
-    if (token && gatewayUrl) {
-      connect(gatewayUrl, token);
-    }
-    return () => { getGateway()?.stop(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return { state, client, gatewayUrl, token, connect, disconnect };
+  return { state, client, connect, disconnect };
 }
 
 export interface AgentInfo {

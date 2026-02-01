@@ -1,16 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useGateway, useSessions, useAgents, useChatStream } from './hooks/useGateway';
-import { ConnectionSettings } from './components/ConnectionSettings';
+import { useAuth } from './hooks/useAuth';
+import { apiFetch } from './lib/api';
 import { SessionList } from './components/SessionList';
 import { ChatView } from './components/ChatView';
 import { WorkingOnPane } from './components/WorkingOnPane';
 import { WaitingForYouPane } from './components/WaitingForYouPane';
 import { ThinkingControls } from './components/ThinkingControls';
 import { AgentSelector } from './components/AgentSelector';
+import { AdminPanel } from './components/AdminPanel';
 import { ThemeSwitcher, ContextBar, AnthropicUsage } from './components/StatusBar';
 
 export default function App() {
-  const { state, client, gatewayUrl, token, connect, disconnect } = useGateway();
+  const { user, logout } = useAuth();
+  const { state, client, connect, disconnect } = useGateway();
   const connected = state === 'connected';
   const { sessions, loading: sessionsLoading, refresh: refreshSessions } = useSessions(client, connected);
   const { agents, loading: agentsLoading } = useAgents(client, connected);
@@ -28,40 +31,64 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
     const stored = localStorage.getItem('clawd-gui-sidebar-open');
     if (stored !== null) return stored === 'true';
-    // Default: collapsed on mobile, open on desktop
     return window.innerWidth >= 768;
+  });
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [gatewayLoaded, setGatewayLoaded] = useState(false);
+
+  // Fetch gateway settings from server and auto-connect
+  useEffect(() => {
+    if (!user) return;
+    const loadGateway = async () => {
+      try {
+        const data = await apiFetch<{ gatewayUrl: string; gatewayToken: string }>('/settings/gateway');
+        if (data.gatewayUrl && data.gatewayToken) {
+          connect(data.gatewayUrl, data.gatewayToken);
+        }
+      } catch { /* ignore */ }
+      setGatewayLoaded(true);
+    };
+    loadGateway();
+    return () => { disconnect(); };
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Filter agents by user's allowed_agents
+  const allowedAgents = user?.allowedAgents || [];
+  const filteredAgents = agents.filter(a => {
+    if (allowedAgents.includes('*')) return true;
+    return allowedAgents.includes(a.id);
   });
 
   // When agents load, ensure activeAgentId is valid
   useEffect(() => {
-    if (agents.length > 0) {
-      const valid = agents.find(a => a.id === activeAgentId);
+    if (filteredAgents.length > 0) {
+      const valid = filteredAgents.find(a => a.id === activeAgentId);
       if (!valid) {
-        const def = agents.find(a => a.default) || agents[0];
+        const def = filteredAgents.find(a => a.default) || filteredAgents[0];
         setActiveAgentId(def.id);
         localStorage.setItem('clawd-gui-agent-id', def.id);
       }
     }
-  }, [agents, activeAgentId]);
+  }, [filteredAgents, activeAgentId]);
 
-  // Handle agent switch
   const handleAgentSwitch = useCallback((agentId: string) => {
     setActiveAgentId(agentId);
     localStorage.setItem('clawd-gui-agent-id', agentId);
-    // Clear active session so it picks the right one for this agent
     setActiveSessionKey('');
   }, []);
 
-  // Filter sessions for the active agent
+  // Filter sessions for active agent AND allowed agents
   const agentSessions = sessions.filter(s => {
-    // Match sessions that belong to the active agent
-    return s.key.startsWith(`agent:${activeAgentId}:`);
+    if (!s.key.startsWith(`agent:${activeAgentId}:`)) return false;
+    // Also filter by allowed agents
+    if (allowedAgents.includes('*')) return true;
+    const match = s.key.match(/^agent:([^:]+):/);
+    return match ? allowedAgents.includes(match[1]) : false;
   });
 
   // Set default session on connect
   useEffect(() => {
     if (connected && client?.sessionDefaults?.mainSessionKey && !activeSessionKey) {
-      // Use main session key only if it matches the active agent
       const mainKey = client.sessionDefaults.mainSessionKey;
       if (mainKey.startsWith(`agent:${activeAgentId}:`)) {
         setActiveSessionKey(mainKey);
@@ -69,7 +96,6 @@ export default function App() {
     }
   }, [connected, client, activeSessionKey, activeAgentId]);
 
-  // Also set from sessions list if no active key
   useEffect(() => {
     if (!activeSessionKey && agentSessions.length > 0) {
       const webchat = agentSessions.find(s => s.key.includes('webchat') || s.channel === 'webchat');
@@ -77,27 +103,23 @@ export default function App() {
     }
   }, [agentSessions, activeSessionKey]);
 
-  // Periodic session refresh (every 5 minutes) to update derived titles
+  // Periodic session refresh
   useEffect(() => {
     if (!connected) return;
-    const interval = setInterval(() => {
-      refreshSessions();
-    }, 5 * 60 * 1000);
+    const interval = setInterval(() => { refreshSessions(); }, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [connected, refreshSessions]);
 
-  // Refresh sessions after each stream ends (to update token counts)
+  // Refresh sessions after stream ends
   useEffect(() => {
     if (streamEndCounter > 0) {
       setTimeout(refreshSessions, 500);
     }
   }, [streamEndCounter, refreshSessions]);
 
-  // Create new session
   const handleNewSession = useCallback(async () => {
     if (!client) return;
     try {
-      // Use chat.send to a new session key to create it
       const sessionKey = `agent:${activeAgentId}:webchat:${Date.now()}`;
       await client.request('chat.send', {
         sessionKey,
@@ -111,8 +133,6 @@ export default function App() {
     }
   }, [client, refreshSessions, activeAgentId]);
 
-  // Load thinking level when session changes
-  // Respect localStorage preference — if user chose "auto", keep it
   useEffect(() => {
     if (!activeSessionKey || !sessions.length) return;
     const stored = localStorage.getItem('clawd-gui-thinking-level');
@@ -126,7 +146,6 @@ export default function App() {
     }
   }, [activeSessionKey, sessions]);
 
-  // Toggle show thinking
   const handleToggleShowThinking = useCallback(() => {
     setShowThinking(prev => {
       const next = !prev;
@@ -135,17 +154,12 @@ export default function App() {
     });
   }, []);
 
-  // Cycle thinking level
   const handleCycleThinkingLevel = useCallback(async () => {
     if (!client || !activeSessionKey) return;
-
     const levels: (string | null)[] = [null, 'low', 'medium', 'high', 'auto'];
     const currentIdx = levels.indexOf(thinkingLevel);
     const nextLevel = levels[(currentIdx + 1) % levels.length];
-
     try {
-      // For "auto", we store it locally but don't patch the gateway yet
-      // (auto will patch per-message before sending)
       if (nextLevel !== 'auto') {
         await client.request('sessions.patch', {
           key: activeSessionKey,
@@ -195,9 +209,9 @@ export default function App() {
             <span className="text-text-secondary ml-1 font-normal text-sm">GUI</span>
           </h1>
           <ThemeSwitcher />
-          {connected && agents.length > 1 && (
+          {connected && filteredAgents.length > 1 && (
             <AgentSelector
-              agents={agents}
+              agents={filteredAgents}
               activeAgentId={activeAgentId}
               onSelect={handleAgentSwitch}
             />
@@ -229,13 +243,34 @@ export default function App() {
               })()}
             </span>
           )}
-          <ConnectionSettings
-            state={state}
-            gatewayUrl={gatewayUrl}
-            token={token}
-            onConnect={connect}
-            onDisconnect={disconnect}
-          />
+          {/* Connection status indicator */}
+          <div className="flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full ${
+              state === 'connected' ? 'bg-success' :
+              state === 'connecting' ? 'bg-warning' :
+              state === 'error' ? 'bg-error' : 'bg-text-muted'
+            }`} title={state} />
+          </div>
+          {/* User menu */}
+          <div className="flex items-center gap-2">
+            {user?.isAdmin && (
+              <button
+                onClick={() => setShowAdmin(true)}
+                className="text-xs text-text-muted hover:text-text-primary transition-colors"
+                title="Admin Panel"
+              >
+                ⚙️
+              </button>
+            )}
+            <span className="text-xs text-text-secondary">{user?.displayName || user?.username}</span>
+            <button
+              onClick={logout}
+              className="text-xs text-text-muted hover:text-text-primary transition-colors"
+              title="Sign out"
+            >
+              ↪
+            </button>
+          </div>
         </div>
       </header>
 
@@ -267,8 +302,21 @@ export default function App() {
             </>
           )}
           {!connected && (
-            <div className="flex items-center justify-center h-full text-text-muted text-sm">
-              Not connected
+            <div className="flex flex-col items-center justify-center h-full text-text-muted text-sm gap-2 px-4 text-center">
+              {gatewayLoaded ? (
+                user?.isAdmin ? (
+                  <>
+                    <span>Gateway not configured</span>
+                    <button onClick={() => setShowAdmin(true)} className="text-accent hover:text-accent-hover text-xs">
+                      Open Admin Panel to configure
+                    </button>
+                  </>
+                ) : (
+                  <span>Not connected — ask an admin to configure the gateway</span>
+                )
+              ) : (
+                <span>Connecting...</span>
+              )}
             </div>
           )}
         </aside>}
@@ -298,7 +346,13 @@ export default function App() {
               ) : (
                 <>
                   <span className="text-lg">Not connected to the gateway</span>
-                  <span className="text-sm">Click the <span className="text-text-primary font-medium">status indicator</span> in the top-right corner to enter your Gateway URL and token.</span>
+                  {user?.isAdmin ? (
+                    <button onClick={() => setShowAdmin(true)} className="text-sm text-accent hover:text-accent-hover">
+                      Configure gateway settings →
+                    </button>
+                  ) : (
+                    <span className="text-sm">Ask an admin to configure the gateway connection.</span>
+                  )}
                 </>
               )}
             </div>
@@ -306,6 +360,7 @@ export default function App() {
         </main>
       </div>
 
+      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
     </div>
   );
 }
