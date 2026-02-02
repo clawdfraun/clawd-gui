@@ -53,6 +53,25 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // GET /uploads/<name> — serve uploaded files (images, etc.)
+  if (req.method === 'GET' && req.url?.startsWith('/uploads/')) {
+    const fileName = decodeURIComponent(req.url.slice(9)).replace(/\.\./g, '');
+    const filePath = join(UPLOAD_DIR, fileName);
+    if (!filePath.startsWith(UPLOAD_DIR)) {
+      res.writeHead(403); res.end('Forbidden'); return;
+    }
+    try {
+      const data = await readFile(filePath);
+      const ext = fileName.split('.').pop()?.toLowerCase();
+      const mimeTypes = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', pdf: 'application/pdf' };
+      res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
+      res.end(data);
+    } catch {
+      res.writeHead(404); res.end('Not found');
+    }
+    return;
+  }
+
   // GET /file/<name> — serve workspace files (JSON only, no path traversal)
   if (req.method === 'GET' && req.url?.startsWith('/file/')) {
     const fileName = decodeURIComponent(req.url.slice(6)).replace(/\.\./g, '');

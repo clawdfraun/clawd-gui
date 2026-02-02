@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-02-02
+
+### Fixed
+- **Image rendering in chat** — Added `/uploads/` static file route to upload sidecar so images posted by the agent render inline instead of showing broken image icons. Supports PNG, JPEG, GIF, WebP, SVG, and PDF.
+
+---
+
 ## [1.0.0] - 2026-02-01
 
 ### 🎉 First Stable Release
