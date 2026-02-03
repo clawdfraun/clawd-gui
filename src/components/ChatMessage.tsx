@@ -283,6 +283,10 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, show
                 remarkPlugins={[remarkGfm]}
                 components={{
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  a: ((props: any) => (
+                    <a {...props} target="_blank" rel="noopener noreferrer" />
+                  )) as any,
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   pre: ((props: any) => {
                     return <CodeBlock inline={false}>{props.children}</CodeBlock>;
                   }) as any,

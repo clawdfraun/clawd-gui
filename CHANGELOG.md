@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.0.2] - 2026-02-02
+
+### Fixed
+- **Horizontal scrollbar** — Removed phantom horizontal scrollbar that appeared at the bottom of the page.
+- **Links open in new tab** — All markdown links in chat messages now open in a new tab/window (`target="_blank"`).
+
+---
+
 ## [1.0.1] - 2026-02-02
 
 ### Fixed
