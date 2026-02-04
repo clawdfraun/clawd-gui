@@ -16,8 +16,17 @@ type PendingRequest = {
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
 
+export type ConnectionHealth = {
+  state: ConnectionState;
+  lastTickAt: number | null;
+  tickIntervalMs: number | null;
+  isStale: boolean;  // true if no tick received in 2x tick interval
+  reconnectAttempts: number;
+};
+
 export type GatewayEventHandler = (event: EventFrame) => void;
 export type ConnectionStateHandler = (state: ConnectionState) => void;
+export type ConnectionHealthHandler = (health: ConnectionHealth) => void;
 
 export class GatewayClient {
   private ws: WebSocket | null = null;
@@ -28,10 +37,17 @@ export class GatewayClient {
   private token: string;
   private eventHandlers: GatewayEventHandler[] = [];
   private stateHandlers: ConnectionStateHandler[] = [];
+  private healthHandlers: ConnectionHealthHandler[] = [];
   private _state: ConnectionState = 'disconnected';
   private _helloOk: HelloOk | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private connectSent = false;
+  
+  // Tick monitoring for connection health
+  private lastTickAt: number | null = null;
+  private tickIntervalMs: number | null = null;
+  private tickCheckTimer: ReturnType<typeof setInterval> | null = null;
+  private reconnectAttempts = 0;
 
   constructor(url: string, token: string) {
     this.url = url;
@@ -41,6 +57,25 @@ export class GatewayClient {
   get state() { return this._state; }
   get helloOk() { return this._helloOk; }
   get sessionDefaults() { return this._helloOk?.snapshot?.sessionDefaults; }
+  
+  get health(): ConnectionHealth {
+    const isStale = this.isConnectionStale();
+    return {
+      state: this._state,
+      lastTickAt: this.lastTickAt,
+      tickIntervalMs: this.tickIntervalMs,
+      isStale,
+      reconnectAttempts: this.reconnectAttempts,
+    };
+  }
+
+  private isConnectionStale(): boolean {
+    if (this._state !== 'connected') return false;
+    if (!this.lastTickAt || !this.tickIntervalMs) return false;
+    const elapsed = Date.now() - this.lastTickAt;
+    // Stale if no tick in 2.5x the expected interval (being slightly generous)
+    return elapsed > this.tickIntervalMs * 2.5;
+  }
 
   onEvent(handler: GatewayEventHandler) {
     this.eventHandlers.push(handler);
@@ -52,9 +87,43 @@ export class GatewayClient {
     return () => { this.stateHandlers = this.stateHandlers.filter(h => h !== handler); };
   }
 
+  onHealthChange(handler: ConnectionHealthHandler) {
+    this.healthHandlers.push(handler);
+    return () => { this.healthHandlers = this.healthHandlers.filter(h => h !== handler); };
+  }
+
   private setState(state: ConnectionState) {
     this._state = state;
     this.stateHandlers.forEach(h => h(state));
+    this.emitHealth();
+  }
+
+  private emitHealth() {
+    const health = this.health;
+    this.healthHandlers.forEach(h => h(health));
+  }
+
+  private startTickMonitor() {
+    this.stopTickMonitor();
+    // Check connection health every 5 seconds
+    this.tickCheckTimer = setInterval(() => {
+      if (this.isConnectionStale()) {
+        console.warn('[gateway] Connection appears stale (no tick received). Reconnecting...');
+        this.emitHealth();
+        // Force reconnect
+        this.ws?.close(4001, 'stale connection');
+      } else {
+        // Emit health update for UI
+        this.emitHealth();
+      }
+    }, 5000);
+  }
+
+  private stopTickMonitor() {
+    if (this.tickCheckTimer) {
+      clearInterval(this.tickCheckTimer);
+      this.tickCheckTimer = null;
+    }
   }
 
   start() {
@@ -72,6 +141,7 @@ export class GatewayClient {
     this.ws.onmessage = (e) => this.handleMessage(e.data as string);
     this.ws.onclose = (e) => {
       this.ws = null;
+      this.stopTickMonitor();
       this.flushPendingErrors(new Error(`closed (${e.code}): ${e.reason}`));
       if (!this.closed) {
         // Don't flash error→disconnected; just show error if we had one
@@ -88,6 +158,7 @@ export class GatewayClient {
 
   stop() {
     this.closed = true;
+    this.stopTickMonitor();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -106,6 +177,19 @@ export class GatewayClient {
       this.closed = false;
       this.ws?.close();
     }
+  }
+
+  // Force immediate reconnect (useful for manual recovery)
+  forceReconnect() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.backoffMs = 1000; // Reset backoff
+    this.reconnectAttempts = 0;
+    this.closed = false;
+    this.ws?.close();
+    this.start();
   }
 
   private sendConnect() {
@@ -132,6 +216,15 @@ export class GatewayClient {
       .then((result) => {
         this._helloOk = result as HelloOk;
         this.backoffMs = 1000;
+        this.reconnectAttempts = 0;
+        
+        // Start tick monitoring if server provides interval
+        if (this._helloOk.policy?.tickIntervalMs) {
+          this.tickIntervalMs = this._helloOk.policy.tickIntervalMs;
+          this.lastTickAt = Date.now(); // Initialize with connect time
+          this.startTickMonitor();
+        }
+        
         this.setState('connected');
       })
       .catch(() => {
@@ -146,11 +239,19 @@ export class GatewayClient {
 
       if (parsed.type === 'event') {
         const evt = parsed as EventFrame;
+        
         // Handle challenge — sendConnect guards against double-send
         if (evt.event === 'connect.challenge') {
           this.sendConnect();
           return;
         }
+        
+        // Track tick events for connection health
+        if (evt.event === 'tick') {
+          this.lastTickAt = Date.now();
+          this.emitHealth();
+        }
+        
         this.eventHandlers.forEach(h => h(evt));
         return;
       }
@@ -173,8 +274,10 @@ export class GatewayClient {
 
   private scheduleReconnect() {
     if (this.closed) return;
+    this.reconnectAttempts++;
     const delay = this.backoffMs;
     this.backoffMs = Math.min(this.backoffMs * 2, 30000);
+    this.emitHealth();
     this.reconnectTimer = setTimeout(() => this.start(), delay);
   }
 

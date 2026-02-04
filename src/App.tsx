@@ -10,6 +10,7 @@ import { ThinkingControls } from './components/ThinkingControls';
 import { AgentSelector } from './components/AgentSelector';
 import { AdminPanel } from './components/AdminPanel';
 import { ThemeSwitcher, ContextBar, AnthropicUsage } from './components/StatusBar';
+import { ConnectionHealth } from './components/ConnectionHealth';
 
 export default function App() {
   const { user, logout } = useAuth();
@@ -262,14 +263,8 @@ export default function App() {
               })()}
             </span>
           )}
-          {/* Connection status indicator */}
-          <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${
-              state === 'connected' ? 'bg-success' :
-              state === 'connecting' ? 'bg-warning' :
-              state === 'error' ? 'bg-error' : 'bg-text-muted'
-            }`} title={state} />
-          </div>
+          {/* Connection status indicator with health details */}
+          <ConnectionHealth client={client} state={state} />
           {/* User menu */}
           <div className="flex items-center gap-2">
             {user?.isAdmin && (
