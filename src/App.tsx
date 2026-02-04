@@ -87,6 +87,8 @@ export default function App() {
         const def = filteredAgents.find(a => a.default) || filteredAgents[0];
         setActiveAgentId(def.id);
         localStorage.setItem(lsKey('agent-id'), def.id);
+        // Clear session when agent is auto-corrected (user doesn't have access to current agent)
+        setActiveSessionKey('');
       }
     }
   }, [filteredAgents, activeAgentId]);
@@ -106,15 +108,19 @@ export default function App() {
     return match ? allowedAgents.includes(match[1]) : false;
   });
 
-  // Set default session on connect
+  // Set default session on connect (only if user has access to that agent)
   useEffect(() => {
     if (connected && client?.sessionDefaults?.mainSessionKey && !activeSessionKey) {
       const mainKey = client.sessionDefaults.mainSessionKey;
-      if (mainKey.startsWith(`agent:${activeAgentId}:`)) {
+      const match = mainKey.match(/^agent:([^:]+):/);
+      const sessionAgent = match?.[1];
+      // Only auto-select if user has access to this agent
+      const hasAccess = sessionAgent && (allowedAgents.includes('*') || allowedAgents.includes(sessionAgent));
+      if (hasAccess && mainKey.startsWith(`agent:${activeAgentId}:`)) {
         setActiveSessionKey(mainKey);
       }
     }
-  }, [connected, client, activeSessionKey, activeAgentId]);
+  }, [connected, client, activeSessionKey, activeAgentId, allowedAgents]);
 
   useEffect(() => {
     if (!activeSessionKey && agentSessions.length > 0) {
