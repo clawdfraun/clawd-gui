@@ -54,14 +54,22 @@ function formatResetTime(resetAt: string): string {
   return `${mins}m`;
 }
 
-function formatResetDate(resetAt: string): string {
+function formatResetDate(resetAt: string, timezone?: string): string {
   const d = new Date(resetAt);
-  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', hour: 'numeric', minute: undefined, timeZoneName: undefined };
-  // Format like "Resets Feb 1, 11am"
-  const month = d.toLocaleString('en-US', { month: 'short' });
-  const day = d.getDate();
-  const hour = d.toLocaleString('en-US', { hour: 'numeric', hour12: true }).toLowerCase();
-  return `Resets ${month} ${day}, ${hour}`;
+  // Use server's timezone if provided, otherwise fall back to browser's local timezone
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    hour12: true,
+    ...(timezone && { timeZone: timezone }),
+  });
+  const parts = formatter.formatToParts(d);
+  const month = parts.find(p => p.type === 'month')?.value || '';
+  const day = parts.find(p => p.type === 'day')?.value || '';
+  const hour = parts.find(p => p.type === 'hour')?.value || '';
+  const dayPeriod = parts.find(p => p.type === 'dayPeriod')?.value?.toLowerCase() || '';
+  return `Resets ${month} ${day}, ${hour}${dayPeriod}`;
 }
 
 /* ── Theme Switcher ── */
@@ -138,6 +146,7 @@ interface UsageData {
   windows: UsageWindow[];
   updatedAt: number;
   error?: string;
+  timezone?: string;
 }
 
 export function AnthropicUsage({ session }: { session: SessionEntry }) {
@@ -184,7 +193,7 @@ export function AnthropicUsage({ session }: { session: SessionEntry }) {
         <div
           key={i}
           className="flex items-center gap-1"
-          title={`${w.label}: ${w.usedPercent}% used${w.resetAt ? `\n${formatResetDate(w.resetAt)} (${formatResetTime(w.resetAt)})` : ''}`}
+          title={`${w.label}: ${w.usedPercent}% used${w.resetAt ? `\n${formatResetDate(w.resetAt, usage.timezone)} (${formatResetTime(w.resetAt)})` : ''}`}
         >
           <span className="whitespace-nowrap">{w.label}</span>
           <div className="w-12 h-1.5 bg-bg-tertiary rounded-full overflow-hidden">

@@ -61,8 +61,11 @@ export async function fetchClaudeUsage() {
       });
     }
 
-    return { windows, updatedAt: Date.now() };
+    // Include server's timezone for correct display on clients
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return { windows, updatedAt: Date.now(), timezone };
   } catch (err) {
-    return { error: err.message, updatedAt: Date.now() };
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return { error: err.message, updatedAt: Date.now(), timezone };
   }
 }
