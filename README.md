@@ -50,6 +50,10 @@ Alex is the human behind the vision — Clawd is the one who builds it. 🐾
 - **Copy to clipboard** — every code block has a copy icon in the top-right corner; click to copy the contents
 - **HTTP-compatible** — uses a fallback clipboard method that works over LAN HTTP (no HTTPS required)
 
+### Notifications
+- **Sound notifications** — optional audio chime when responses complete; toggle via 🔕/🔔 icon in header
+- **Per-user preference** — sound setting persists across sessions
+
 ### Visual Polish
 - **Streaming pulse border** — messages actively streaming show a pulsing accent-colored border
 - **Thinking pulse border** — the "thinking..." indicator pulses with the same animation while the agent reasons
@@ -254,8 +258,9 @@ clawd-gui/
 │   │   ├── WaitingForYouPane.tsx  # Pending user-input items (admin only)
 │   │   └── WorkingOnPane.tsx      # Active background sessions (filtered by agent)
 │   ├── hooks/
-│   │   ├── useGateway.ts         # WebSocket connection & chat streaming
-│   │   └── useAuth.tsx           # Auth context, login/logout/setup
+│   │   ├── useGateway.ts          # WebSocket connection & chat streaming
+│   │   ├── useAuth.tsx            # Auth context, login/logout/setup
+│   │   └── useNotificationSound.ts # Audio notification toggle
 │   ├── lib/
 │   │   ├── gateway.ts            # JSON-RPC WebSocket client
 │   │   ├── api.ts                # Fetch wrapper with JWT Bearer token
