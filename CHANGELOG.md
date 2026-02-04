@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.0.3] - 2026-02-04
+
+### Added
+- **Notification sound** — Optional audio chime when responses complete. Toggle via 🔕/🔔 icon in header. Uses Web Audio API (no external files). Preference persisted per-user.
+
+### Fixed
+- **Timezone handling** — Session reset times now display correctly in server's timezone. Previously could be off by an hour due to browser timezone detection issues.
+- **Session leak between users** — Users with restricted `allowed_agents` could briefly see sessions from other agents due to race condition. Now properly validates agent access before auto-selecting sessions.
+
+---
+
 ## [1.0.2] - 2026-02-02
 
 ### Fixed
