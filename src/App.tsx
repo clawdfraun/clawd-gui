@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useGateway, useSessions, useAgents, useChatStream } from './hooks/useGateway';
 import { useAuth } from './hooks/useAuth';
+import { useNotificationSound } from './hooks/useNotificationSound';
 import { apiFetch } from './lib/api';
 import { SessionList } from './components/SessionList';
 import { ChatView } from './components/ChatView';
@@ -37,6 +38,18 @@ export default function App() {
   });
   const [showAdmin, setShowAdmin] = useState(false);
   const [gatewayLoaded, setGatewayLoaded] = useState(false);
+  
+  // Notification sound
+  const { soundEnabled, toggle: toggleSound, playSound } = useNotificationSound();
+  const prevStreamEndCounter = useRef(streamEndCounter);
+  
+  // Play sound when a response completes
+  useEffect(() => {
+    if (streamEndCounter > prevStreamEndCounter.current) {
+      playSound();
+    }
+    prevStreamEndCounter.current = streamEndCounter;
+  }, [streamEndCounter, playSound]);
 
   // Load gateway settings and connect
   const reconnectGateway = useCallback(async () => {
@@ -273,6 +286,14 @@ export default function App() {
           <ConnectionHealth client={client} state={state} />
           {/* User menu */}
           <div className="flex items-center gap-2">
+            {/* Sound toggle */}
+            <button
+              onClick={toggleSound}
+              className={`text-xs transition-colors ${soundEnabled ? 'text-accent' : 'text-text-muted hover:text-text-primary'}`}
+              title={soundEnabled ? 'Sound notifications on (click to disable)' : 'Sound notifications off (click to enable)'}
+            >
+              {soundEnabled ? '🔔' : '🔕'}
+            </button>
             {user?.isAdmin && (
               <button
                 onClick={() => setShowAdmin(true)}
