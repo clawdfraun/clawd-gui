@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.0.4] - 2026-02-08
+
+### Changed
+- **Message timestamps** — Now show both date and time (e.g. "Feb 8, 7:42 PM") instead of just time. Makes it easier to track conversation history across days.
+
+---
+
 ## [1.0.3] - 2026-02-04
 
 ### Added

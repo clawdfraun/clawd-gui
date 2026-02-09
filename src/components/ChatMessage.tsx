@@ -307,7 +307,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, show
 
         {message.ts && (
           <div className="text-[10px] text-text-muted mt-1">
-            {new Date(message.ts).toLocaleTimeString()}
+            {new Date(message.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} {new Date(message.ts).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
           </div>
         )}
       </div>
