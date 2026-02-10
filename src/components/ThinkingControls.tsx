@@ -6,7 +6,7 @@ interface Props {
   onCycleLevel: () => void;
 }
 
-const LEVELS = [null, 'low', 'medium', 'high', 'auto'] as const;
+const LEVELS = [null, 'low', 'medium', 'high', 'auto', 'adaptive'] as const;
 
 function getLevelIndex(level: string | null): number {
   if (!level || level === 'off' || level === 'none') return 0;
@@ -17,6 +17,7 @@ function getLevelIndex(level: string | null): number {
 function getLevelLabel(level: string | null): string {
   if (!level || level === 'off' || level === 'none') return 'Off';
   if (level === 'auto') return 'Auto';
+  if (level === 'adaptive') return 'Adaptive';
   return level.charAt(0).toUpperCase() + level.slice(1);
 }
 
@@ -44,7 +45,8 @@ function ShowThinkingIcon({ active }: { active: boolean }) {
 function ThinkingLevelIcon({ level }: { level: string | null }) {
   const idx = getLevelIndex(level);
   const isAuto = level === 'auto';
-  // 0=off, 1=low, 2=medium, 3=high, 4=auto
+  const isAdaptive = level === 'adaptive';
+  // 0=off, 1=low, 2=medium, 3=high, 4=auto, 5=adaptive
 
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" strokeWidth="1.5" stroke="currentColor" className="inline-block">
@@ -55,8 +57,16 @@ function ThinkingLevelIcon({ level }: { level: string | null }) {
         </clipPath>
       </defs>
 
-      {/* Fill based on level — auto gets a gradient-like pulsing fill */}
-      {isAuto ? (
+      {/* Fill based on level — auto/adaptive get pulsing fills */}
+      {isAdaptive ? (
+        <rect
+          x="2" width="20" y="2" height="20"
+          fill="currentColor"
+          opacity="0.25"
+          clipPath="url(#brain-clip)"
+          className="animate-pulse"
+        />
+      ) : isAuto ? (
         <rect
           x="2" width="20" y="2" height="20"
           fill="currentColor"
@@ -80,8 +90,11 @@ function ThinkingLevelIcon({ level }: { level: string | null }) {
       <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
       <path d="M12 5v13" opacity="0.4" />
 
-      {/* "A" overlay for auto mode */}
-      {isAuto && (
+      {/* "A" overlay for auto mode, lightning bolt for adaptive */}
+      {isAdaptive && (
+        <path d="M13 7l-3 5h3l-1 5 4-6h-3.5L13 7z" fill="currentColor" stroke="none" opacity="0.8" />
+      )}
+      {isAuto && !isAdaptive && (
         <text x="12" y="15" textAnchor="middle" fontSize="8" fontWeight="bold"
           fill="currentColor" stroke="none">A</text>
       )}
@@ -118,7 +131,7 @@ export function ThinkingControls({ showThinking, thinkingLevel, autoResolvedLeve
             ? 'bg-accent/20 text-accent'
             : 'text-text-muted hover:text-text-primary'
         }`}
-        title={`Thinking level: ${getLevelLabel(thinkingLevel)}${isAuto && resolvedLabel ? ` (resolved: ${resolvedLabel})` : ''} — click to cycle`}
+        title={`Thinking level: ${getLevelLabel(thinkingLevel)}${thinkingLevel === 'adaptive' ? ' (model decides)' : isAuto && resolvedLabel ? ` (resolved: ${resolvedLabel})` : ''} — click to cycle`}
       >
         <ThinkingLevelIcon level={thinkingLevel} />
         <span className="text-[10px] font-medium uppercase tracking-wide">

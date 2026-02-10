@@ -25,7 +25,7 @@ export default function App() {
   const [activeAgentId, setActiveAgentId] = useState(() => localStorage.getItem(lsKey('agent-id')) || 'main');
   const [activeSessionKey, setActiveSessionKey] = useState('');
   const [thinkingLevel, setThinkingLevel] = useState<string | null>(() => {
-    return localStorage.getItem('clawd-gui-thinking-level') || 'auto';
+    return localStorage.getItem('clawd-gui-thinking-level') || 'adaptive';
   });
   const [autoResolvedLevel, setAutoResolvedLevel] = useState<string | null>(null);
   const [showThinking, setShowThinking] = useState<boolean>(() => {
@@ -181,7 +181,7 @@ export default function App() {
       setThinkingLevel(stored);
     } else {
       const session = sessions.find(s => s.key === activeSessionKey);
-      setThinkingLevel(session?.thinkingLevel ?? 'auto');
+      setThinkingLevel(session?.thinkingLevel ?? 'adaptive');
     }
   }, [activeSessionKey, sessions]);
 
@@ -195,11 +195,17 @@ export default function App() {
 
   const handleCycleThinkingLevel = useCallback(async () => {
     if (!client || !activeSessionKey) return;
-    const levels: (string | null)[] = [null, 'low', 'medium', 'high', 'auto'];
+    const levels: (string | null)[] = [null, 'low', 'medium', 'high', 'auto', 'adaptive'];
     const currentIdx = levels.indexOf(thinkingLevel);
     const nextLevel = levels[(currentIdx + 1) % levels.length];
     try {
-      if (nextLevel !== 'auto') {
+      if (nextLevel === 'adaptive') {
+        // Adaptive: clear thinking level so the model decides natively
+        await client.request('sessions.patch', {
+          key: activeSessionKey,
+          thinkingLevel: null,
+        });
+      } else if (nextLevel !== 'auto') {
         await client.request('sessions.patch', {
           key: activeSessionKey,
           thinkingLevel: nextLevel,

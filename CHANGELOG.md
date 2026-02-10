@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.0.5] - 2026-02-10
+
+### Added
+- **Adaptive thinking mode** — New option in the thinking level cycle (Off → Low → Medium → High → Auto → Adaptive). Adaptive sends no thinking budget hint, letting Opus 4.6's native adaptive thinking decide how much to reason per request. Brain icon shows a lightning bolt ⚡ when active.
+- **Adaptive as default** — New installations and users without a stored preference start in Adaptive mode instead of Auto.
+
+### Fixed
+- **Context bar accuracy** — Context window max now reads from the gateway's `contextTokens` session field instead of a hardcoded 200k model lookup. Correctly reflects configured context limits (e.g. 500k, 1M).
+- **Opus 4.6 model support** — Added `claude-opus-4-6` to the fallback model context window map with 1M token limit. Future-proofed for upcoming model versions.
+
+---
+
 ## [1.0.4] - 2026-02-08
 
 ### Changed

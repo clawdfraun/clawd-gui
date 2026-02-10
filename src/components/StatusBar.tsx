@@ -6,7 +6,9 @@ type ThemeMode = 'dark' | 'light' | 'system';
 const THEME_KEY = 'clawd-gui-theme';
 
 // Known model context windows
+// Fallback model context windows (used only when session doesn't report contextTokens)
 const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
+  'claude-opus-4-6': 1000000,
   'claude-opus-4-5': 200000,
   'claude-sonnet-4': 200000,
   'claude-haiku-3-5': 200000,
@@ -24,6 +26,8 @@ function getContextWindow(model: string | undefined): number | null {
   for (const [key, val] of Object.entries(MODEL_CONTEXT_WINDOWS)) {
     if (shortName.startsWith(key) || shortName.includes(key)) return val;
   }
+  // For unknown Claude models, check if it's a 4.6+ model (1M context) or older (200k)
+  if (shortName.includes('opus-4-6') || shortName.includes('opus-4-7') || shortName.includes('opus-5')) return 1000000;
   if (shortName.includes('claude')) return 200000;
   return null;
 }
@@ -110,7 +114,9 @@ export function ThemeSwitcher() {
 export function ContextBar({ session }: { session: SessionEntry }) {
   const model = session?.model;
   const totalTokens = session?.totalTokens ?? 0;
-  const contextWindow = getContextWindow(model);
+  // Use contextTokens from session (gateway config) if available, otherwise fall back to model defaults
+  const sessionContextTokens = (session as Record<string, unknown>).contextTokens as number | undefined;
+  const contextWindow = sessionContextTokens || getContextWindow(model);
   if (!contextWindow) return null;
 
   const pct = Math.min(100, (totalTokens / contextWindow) * 100);

@@ -214,6 +214,7 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
 
     try {
       // Auto-thinking: classify message and set thinking level before sending
+      // Adaptive mode: skip — let the model's native adaptive thinking handle it
       if (thinkingLevel === 'auto' && text) {
         const autoLevel = classifyThinking(text);
         onAutoResolvedLevel(autoLevel);
@@ -225,6 +226,9 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
         } catch (err) {
           console.error('Auto-thinking patch failed:', err);
         }
+      } else if (thinkingLevel === 'adaptive') {
+        onAutoResolvedLevel(null);
+        // Don't patch — no thinking level hint sent, model decides
       }
 
       await client.request('chat.send', {

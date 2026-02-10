@@ -25,8 +25,9 @@ Alex is the human behind the vision — Clawd is the one who builds it. 🐾
 - **Multi-agent support** — switch between configured agents from the header
 
 ### Thinking & Reasoning
-- **Thinking level control** — cycle through Off / Low / Medium / High / Auto
+- **Thinking level control** — cycle through Off / Low / Medium / High / Auto / Adaptive
 - **Thinking block display** — toggle visibility of the agent's internal reasoning and tool call output
+- **Adaptive mode** (default) — sends no thinking budget hint, letting models with native adaptive thinking (like Opus 4.6) decide how much to reason on their own. Brain icon shows a ⚡ lightning bolt when active.
 - **Auto-Thinking mode** — heuristic classifier automatically selects the optimal thinking level per message:
   - **Off** — casual messages ("hi", "thanks", "lol")
   - **Low** — informational questions ("What is the capital of France?")
@@ -57,9 +58,9 @@ Alex is the human behind the vision — Clawd is the one who builds it. 🐾
 ### Visual Polish
 - **Streaming pulse border** — messages actively streaming show a pulsing accent-colored border
 - **Thinking pulse border** — the "thinking..." indicator pulses with the same animation while the agent reasons
-- **Brain fill icon** — the thinking level button fills proportionally (empty for Off, ⅓ for Low, ⅔ for Medium, full for High, pulsing "A" for Auto)
+- **Brain fill icon** — the thinking level button fills proportionally (empty for Off, ⅓ for Low, ⅔ for Medium, full for High, pulsing "A" for Auto, ⚡ for Adaptive)
 - **Dark/light theme** — clean, modern UI with theme switcher
-- **Context & usage bars** — live token context usage and Anthropic usage display in the header
+- **Context & usage bars** — live token context usage (reads actual configured limit from gateway) and Anthropic usage display in the header
 
 ### User Authentication & Multi-User Support
 - **User accounts** — password-protected accounts with bcrypt hashing and JWT tokens
@@ -104,8 +105,12 @@ The Express backend handles user authentication (JWT), stores user accounts and 
 
 ---
 
-## Auto-Thinking: How It Works
+## Thinking Modes: Auto vs Adaptive
 
+### Adaptive (Default)
+When set to **Adaptive**, the GUI sends no thinking budget hint at all. The model's native adaptive thinking takes over — for models like Opus 4.6, this means the model dynamically allocates reasoning effort based on the complexity it perceives. This is the recommended default for models that support adaptive thinking.
+
+### Auto
 When the thinking level is set to **Auto**, the GUI analyzes each outgoing message with a lightweight heuristic classifier before sending it to the gateway. The classifier examines the message text for patterns and keywords, then temporarily sets the appropriate thinking level for that request.
 
 ### Classification Rules
