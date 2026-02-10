@@ -150,7 +150,16 @@ export function ChatView({ client, sessionKey, streamingMessages, agentEvents, a
         sessionKey,
         limit: 200,
       });
-      setMessages((result.messages || []).filter(m => !isHeartbeatMessage(m)));
+      setMessages((result.messages || [])
+        .map(m => {
+          // Gateway returns 'timestamp', normalize to 'ts' for display
+          const raw = m as unknown as Record<string, unknown>;
+          if (!m.ts && raw.timestamp) {
+            return { ...m, ts: raw.timestamp as number };
+          }
+          return m;
+        })
+        .filter(m => !isHeartbeatMessage(m)));
 
     } catch { /* ignore */ }
   }, [client, sessionKey]);

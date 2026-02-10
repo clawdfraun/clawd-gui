@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.0.6] - 2026-02-10
+
+### Fixed
+- **Message timestamps now visible** — Gateway returns `timestamp` but the GUI expected `ts`, so date/time stamps were missing from message bubbles. History loading now normalizes the field, showing timestamps (e.g. "Feb 10 2:43 PM") at the bottom of every message.
+
+---
+
 ## [1.0.5] - 2026-02-10
 
 ### Added

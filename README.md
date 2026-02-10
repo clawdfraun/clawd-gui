@@ -56,6 +56,7 @@ Alex is the human behind the vision — Clawd is the one who builds it. 🐾
 - **Per-user preference** — sound setting persists across sessions
 
 ### Visual Polish
+- **Message timestamps** — every message bubble displays a date/time stamp at the bottom (e.g. "Feb 10 2:43 PM")
 - **Streaming pulse border** — messages actively streaming show a pulsing accent-colored border
 - **Thinking pulse border** — the "thinking..." indicator pulses with the same animation while the agent reasons
 - **Brain fill icon** — the thinking level button fills proportionally (empty for Off, ⅓ for Low, ⅔ for Medium, full for High, pulsing "A" for Auto, ⚡ for Adaptive)
